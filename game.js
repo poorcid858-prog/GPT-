@@ -105,23 +105,19 @@
     }
 
     // 2. 篮板 / 篮筐 / 篮网（B 包）
-    if (window.Backboard) {
-      reg.renders.push((gs, ctx) => { try { if (window.Backboard.render) window.Backboard.render(gs, ctx); } catch(e){} });
+    if (window.Backboard && typeof window.Backboard.drawBackboard === 'function') {
+      reg.renders.push((gs, ctx) => { try { window.Backboard.drawBackboard(ctx, gs.backboard); } catch(e){} });
     }
-    if (window.Rim) {
-      reg.renders.push((gs, ctx) => { try { if (window.Rim.render) window.Rim.render(gs, ctx); } catch(e){} });
+    if (window.Rim && typeof window.Rim.drawRim === 'function') {
+      reg.renders.push((gs, ctx) => { try { window.Rim.drawRim(ctx, gs.rim); } catch(e){} });
     }
-    if (window.NetAnimation) {
-      reg.renders.push((gs, ctx) => { try { if (window.NetAnimation.render) window.NetAnimation.render(gs, ctx); } catch(e){} });
-    } else if (typeof window.drawNet === 'function') {
+    if (typeof window.drawNet === 'function') {
       reg.renders.push((gs, ctx) => { try { window.drawNet(ctx, gs.rim, gs.net); } catch(e){} });
     }
 
     // 3. 篮球
-    if (window.BallModule) {
-      reg.renders.push((gs, ctx) => { try { if (window.BallModule.render) window.BallModule.render(gs, ctx); } catch(e){} });
-    } else if (window.Ball && typeof window.Ball.render === 'function') {
-      reg.renders.push((gs, ctx) => { try { window.Ball.render(gs, ctx); } catch(e){} });
+    if (window.BallModule && typeof window.BallModule.drawBall === 'function') {
+      reg.renders.push((gs, ctx) => { try { window.BallModule.drawBall(ctx, gs.ball); } catch(e){} });
     }
 
     // 4. 瞄准线 / 轨迹预测（瞄准中）
@@ -154,21 +150,18 @@
     // ---- 更新钩子 ----
 
     // 8. 物理 / 碰撞 / 进球判定（B 包）
-    if (window.Physics) {
+    if (window.Physics && typeof window.Physics.updatePhysics === 'function') {
       reg.updates.push((gs, dt) => {
         if (gs.phase !== STATE.BALL_FLYING) return;
-        try {
-          if (typeof window.Physics.updateBall === 'function') window.Physics.updateBall(gs.ball, dt);
-          if (typeof window.Physics.applyGravity === 'function') window.Physics.applyGravity(gs.ball, dt);
-        } catch(e){ console.error(e); }
+        try { window.Physics.updatePhysics(gs.ball, dt); } catch(e){ console.error(e); }
       });
     }
     if (window.Collision) {
       reg.updates.push((gs, dt) => {
         if (gs.phase !== STATE.BALL_FLYING) return;
         try {
-          if (typeof window.Collision.checkRim === 'function') window.Collision.checkRim(gs.ball, gs.rim);
-          if (typeof window.Collision.checkBackboard === 'function') window.Collision.checkBackboard(gs.ball, gs.backboard);
+          if (typeof window.Collision.checkRimEdgeCollision === 'function') window.Collision.checkRimEdgeCollision(gs.ball, gs.rim);
+          if (typeof window.Collision.checkBackboardCollision === 'function') window.Collision.checkBackboardCollision(gs.ball, gs.backboard);
         } catch(e){}
       });
     }
@@ -204,26 +197,25 @@
       // pointerup（投篮释放）
       if (input.lastRelease && gs.phase === STATE.AIMING && window.Shot) {
         try {
-          if (typeof window.Shot.release === 'function') {
-            window.Shot.release(gs, input.lastRelease.start, input.lastRelease.end);
-          } else if (typeof window.Shot.shoot === 'function') {
-            window.Shot.shoot(gs, input.lastRelease.start, input.lastRelease.end);
+          if (typeof window.Shot.releaseShot === 'function') {
+            window.Shot.releaseShot(gs.ball, input.lastRelease.start, input.lastRelease.end, gs);
           }
         } catch (e) { console.error(e); }
       }
       // pointerdown（开始瞄准）
       if (input.justPressed && gs.phase === STATE.READY && window.Shot) {
         try {
-          if (typeof window.Shot.startAim === 'function') {
-            window.Shot.startAim(gs, input.startX, input.startY);
+          if (typeof window.Shot.startAiming === 'function') {
+            window.Shot.startAiming(gs.ball, input.startX, input.startY);
+            gs.phase = STATE.AIMING;
           }
         } catch (e) { console.error(e); }
       }
       // pointermove（更新瞄准方向）
       if (input.isDown && gs.phase === STATE.AIMING && window.Shot) {
         try {
-          if (typeof window.Shot.updateAim === 'function') {
-            window.Shot.updateAim(gs, input.currentX, input.currentY);
+          if (typeof window.Shot.updateAiming === 'function') {
+            window.Shot.updateAiming(gs.ball, input.currentX, input.currentY, gs.currentShot.power);
           }
         } catch (e) {}
       }
@@ -380,6 +372,39 @@
     const LOGICAL_H = 600;
     setupCanvas(canvas, LOGICAL_W, LOGICAL_H);
 
+    // 7.3.1 初始化实体（篮球、篮筐、篮板、篮网）
+    // 篮筐位置：画布右上方（逻辑坐标 800×600 中）
+    const RIM_X = LOGICAL_W * 0.72;
+    const RIM_Y = LOGICAL_H * 0.22;
+    const BALL_START_X = LOGICAL_W * 0.30;
+    const BALL_START_Y = LOGICAL_H * 0.75;
+
+    if (typeof BallModule !== 'undefined') {
+      gameState.ball = BallModule.createBall(BALL_START_X, BALL_START_Y);
+    } else {
+      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: 18, vx: 0, vy: 0, rotation: 0, inFlight: false, shotResolved: false, hitRim: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0 };
+    }
+
+    if (typeof Rim !== 'undefined' && typeof Rim.createRim === 'function') {
+      gameState.rim = Rim.createRim(RIM_X, RIM_Y);
+    } else {
+      const rimW = GAME_CONFIG.rim.width;
+      gameState.rim = { x: RIM_X, y: RIM_Y, width: rimW, height: GAME_CONFIG.rim.height, rimLeft: { x: RIM_X - rimW/2, y: RIM_Y, radius: 6 }, rimRight: { x: RIM_X + rimW/2, y: RIM_Y, radius: 6 } };
+    }
+
+    if (typeof Backboard !== 'undefined' && typeof Backboard.createBackboard === 'function') {
+      gameState.backboard = Backboard.createBackboard(RIM_X + 15, RIM_Y - 50);
+    } else {
+      gameState.backboard = { x: RIM_X + 15, y: RIM_Y - 50, width: 10, height: 120, restitution: 0.75 };
+    }
+
+    // 篮网
+    gameState.net = { points: 6, swing: 0, swingSpeed: 0, state: 'normal', timer: 0 };
+
+    // 粒子和飘字数组（反馈系统用）
+    gameState.particles = [];
+    gameState.popups = [];
+
     // 7.4 UI 绑定
     const ui = bindUI(gameState);
 
@@ -388,9 +413,13 @@
       isDown: false,
       startX: 0, startY: 0,
       currentX: 0, currentY: 0,
-      lastRelease: null
+      lastRelease: null,
+      justPressed: false
     };
+    // 挂到 gameState 上，让 glue code 的 input 钩子可以访问
+    gameState.input = input;
     function onPointerDown(e) {
+      input.justPressed = true;
       const p = screenToLogical(canvas, LOGICAL_W, LOGICAL_H, e.clientX, e.clientY);
       input.isDown = true;
       input.startX = p.x; input.startY = p.y;
@@ -453,8 +482,9 @@
       for (let i = 0; i < reg.inputs.length; i++) {
         try { reg.inputs[i](gameState, input, dt); } catch (e) { console.error(e); }
       }
-      // 一帧后清空「单次释放」事件
+      // 一帧后清空「单次释放」事件和「单次按下」事件
       if (input.lastRelease) input.lastRelease = null;
+      input.justPressed = false;
     }
     function onUpdate(dt) {
       // 状态机阶段：LOADING → MENU → READY
