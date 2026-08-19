@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPT投篮 - 素材总览</title>
+<style>
+  :root {
+    --amber: #f5a623; --deep: #1c2230; --cookie: #e8d8b0;
+    --line: rgba(255,255,255,.14); --muted: #aeb6c4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: radial-gradient(1200px 600px at 50% -10%, #2a3344, #1c2230); color: #eef1f6; font-family: -apple-system,"Segoe UI",Meiryo, sans-serif; padding: 32px 20px 80px; }
+  h1 { text-align:center; font-size:28px; letter-spacing:.5px; }
+  h1 small { display:block; font-weight:400; color:var(--muted); font-size:13px; margin-top:8px; }
+  .section > h2 { font-size:15px; color:var(--amber); padding-left:14px; border-left:4px solid var(--amber); margin:38px 0 14px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap:14px; }
+  .card { background:rgba(255,255,255,.045); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .stage { background:
+      linear-gradient(135deg, #3a4356, #232b3a 55%, #2f2f2f 55%, #262626) ;
+      background-size:70px 70px;
+      display:flex; align-items:center; justify-content:center; height:190px; }
+  .stage .img { max-width:88%; max-height:150px; object-fit:contain; filter:drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
+  .card .meta { padding:9px 12px; font-size:11px; color:var(--muted); border-top:1px solid var(--line); display:flex; justify-content:space-between; }
+  .card .name { font-size:13px; color:#dfe6f2; padding:8px 12px 0; font-weight:600; }
+  .canvas {}
+  .audio-card .stage { height:110px; background:#20242e; }
+  audio { width:86%; }
+  .note { color:var(--muted); font-size:12px; max-width:760px; line-height:1.8; background:rgba(245,166,35,.06); border-left:3px solid var(--amber); padding:12px 16px; border-radius:6px; margin:18px 0; }
+  .tag { background:rgba(245,166,35,.14); color:var(--amber); border-radius:20px; padding:2px 9px; font-size:11px; font-weight:600; }
+</style>
+</head>
+<body>
+<h1>🏀 GPT投篮 · 素材总览<small>全部资源由同一套调色板与光照统一生成 · 移动优先 · 16:9 横屏</small></h1>
+
+<div class="section"><h2>篮球与篮筐</h2><div class="grid" id="basketGrid"></div></div>
+<div class="section"><h2>背景</h2><div class="grid" id="bgGrid"></div></div>
+<div class="section"><h2>射手动画（逐帧）</h2><div class="note">懒加载逐帧预览：点击「播放动画」在 Canvas 里循环播放投篮出手 1→6 帧。完整 6 帧已在 assets/player 目录，供游戏逻辑按帧切换。</div><div class="grid" id="playerGrid"></div></div>
+<div class="section marked"><h2>音效（WAV）</h2><div class="grid" id="soundGrid"></div></div>
+
+<script>
+
+// —— 图片目录常量（相对本页到 assets 的路径） ——
+const IMGS = '../assets/images/';
+const PLAYERS = '../assets/player/';
+const SOUNDS = '../assets/sounds/';
+
+// 各卡展示用的文件（带 / 消除高亮）
+const basketItems = [
+  { name:'basketball',  file:'basketball.png',  tag:'PNG' },
+  { name:'basketball (texture)', file:'basketball-texture.png', tag:'PNG' },
+  { name:'backboard',   file:'backboard.png',   tag:'PNG' },
+  { name:'rim',         file:'rim.png',         tag:'PNG' },
+  { name:'net',         file:'net.png',         tag:'PNG' },
+];
+const bgItems = [
+  { name:'court',       file:'court-background.png', tag:'PNG' },
+  { name:'background (crowd)', file:'crowd-background.png', tag:'PNG' },
+  { name:'arena',       file:'arena-background.png', tag:'PNG' },
+];
+
+const sceneStages = document.getElementById('playerGrid');
+
+function el(tag, cls, text){ const d=document.createElement(tag); if(cls)d.className=cls; if(text!=null)d.textContent=text; return d; }
+
+function card(stageInner, name, tag){
+  const c = el('div','card');
+  const st = el('div','stage'); st.appendChild(stageInner);
+  const n = el('div','name', name);
+  const m = el('div','meta');
+  m.appendChild(el('span','', tag||''));
+  c.append(st, n, m);
+  return c;
+}
+
+function imgCard(item, base){
+  const img = document.createElement('img');
+  img.className='img'; img.loading='lazy'; img.alt=item.name;
+  img.src = base + item.file;
+  img.onerror = function(){ this.style.opacity=.35; };
+  return card(img, item.name, item.tag);
+}
+
+basketItems.forEach(it => document.getElementById('basketGrid').appendChild(imgCard(it, IMGS)));
+bgItems.forEach(it => document.getElementById('bgGrid').appendChild(imgCard(it, IMGS)));
+
+// —— 射手逐帧动画预览 ——
+const FRAMES = 6;
+let anim = { playing:false, idx:0, raf:0 };
+
+function makePlayerCard(){
+  const c = el('div','card');
+  const st = el('div','stage');
+  const cv = document.createElement('canvas'); cv.width=180; cv.height=260; cv.className='canvas';
+  st.appendChild(cv);
+
+  const n = el('div','name','player + shoot animation (6 frames)');
+  const m = el('div','meta');
+  const btn = document.createElement('button');
+  btn.textContent='▶ 播放动画';
+  btn.style.cssText='background:var(--amber);color:#1c2230;border:none;border-radius:8px;padding:5px 12px;font-weight:700;cursor:pointer;font-size:12px;';
+  btn.onclick = togglePlay;
+  m.appendChild(btn); m.appendChild(el('span','', 'player / player-shoot-1..6'));
+  c.append(st, n, m);
+
+  // 载入 prefetch 第一帧
+  preloadFrames();
+  return c;
+}
+
+let _frames = [];
+function preloadFrames(){
+  _frames = [];
+  for(let i=1;i<=FRAMES;i++){
+    const im = new Image();
+    im.src = PLAYERS + 'player-shoot-' + i + '.png';
+    _frames.push(im);
+  }
+}
+
+function drawFrame(idx){
+  const cv = document.querySelector('.canvas'); if(!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const im = _frames[idx % _frames.length];
+  if(im && im.complete && im.naturalWidth){
+    const r = Math.min(cv.width/im.naturalWidth, cv.height/im.naturalHeight);
+    const w = im.naturalWidth*r, h = im.naturalHeight*r;
+    ctx.drawImage(im, (cv.width-w)/2, (cv.height-h)/2, w, h);
+  }
+}
+
+function tick(){
+  if(!anim.playing){ drawFrame(0); return; }
+  drawFrame(anim.idx);
+  anim.idx = (anim.idx+1) % FRAMES;
+  anim.raf = setTimeout(tick, 130);
+}
+
+function togglePlay(){
+  anim.playing = !anim.playing;
+  const btn = document.querySelector('.card button');
+  if(btn) btn.textContent = anim.playing ? '⏸ 暂停' : '▶ 播放动画';
+  if(anim.playing){ anim.idx=0; tick(); } else clearTimeout(anim.raf);
+}
+
+document.getElementById('playerGrid').appendChild(makePlayerCard());
+
+// —— 音效 ——
+const sounds = [
+  ['shoot','投篮出手'],['rim-hit','擦筐'],['score','进球得分'],['swish','空心入网'],
+  ['perfect','Perfect 完美'],['game-over','游戏结束'],['button','按钮点击'],
+];
+sounds.forEach(([file,label])=>{
+  const c = el('div','card audio-card');
+  const st = el('div','stage');
+  const a = document.createElement('audio'); a.controls=true; a.preload='none';
+  a.src = SOUNDS + file + '.wav';
+  st.appendChild(a);
+  const n = el('div','name', file);
+  const m = el('div','meta'); m.appendChild(el('span','',label)); m.appendChild(el('span','','WAV'));
+  c.append(st, n, m);
+  document.getElementById('soundGrid').appendChild(c);
+});
+</script>
+</body>
+</html>
