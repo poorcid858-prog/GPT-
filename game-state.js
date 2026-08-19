@@ -87,6 +87,9 @@ function createInitialState() {
     madeShots: 0,            // 命中数
     missShots: 0,            // Miss 数
 
+    // —— 倒计时（TimerSystem 写入 timeLeft，UI 读取 remainingTime）——
+    timeLeft: GAME_CONFIG.duration,
+
     // —— 当前投篮信息 ——
     currentShot: {
       startTime: 0,          // 出手时间
@@ -99,7 +102,8 @@ function createInitialState() {
       hitRim: false,         // 是否擦筐
       isPerfect: false,      // 是否 Perfect
       isSwish: false,        // 是否空心
-      resolved: false        // 本球是否已结算
+      resolved: false,       // 本球是否已结算
+      isScored: false        // 本球是否命中（结算后设置）
     },
 
     // —— 实体数据占位（由 ball/rim 模块填充）——
@@ -147,10 +151,12 @@ function resetRunState(gameState) {
   gameState.combo = 0;
   gameState.maxCombo = 0;
   gameState.remainingTime = GAME_CONFIG.duration;
+  gameState.timeLeft = GAME_CONFIG.duration;
   gameState.shots = 0;
   gameState.madeShots = 0;
   gameState.missShots = 0;
   gameState.currentShot.resolved = false;
+  gameState.currentShot.isScored = false;
   gameState.currentShot.hitRim = false;
   gameState.currentShot.isPerfect = false;
   gameState.currentShot.isSwish = false;

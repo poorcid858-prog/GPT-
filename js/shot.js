@@ -63,7 +63,8 @@
 
         // 最小拖拽距离防误触
         const dragDist = Math.hypot(start.x - current.x, start.y - current.y);
-        if (dragDist < PHYSICS.minDragDistance) {
+        const minDrag = (typeof PHYSICS.minDragDistance === 'number') ? PHYSICS.minDragDistance : 20;
+        if (dragDist < minDrag) {
             // 拖拽距离太小，视为无效投篮
             ball.isAiming = false;
             return null;

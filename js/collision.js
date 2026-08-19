@@ -118,13 +118,15 @@
         // 速度沿法线反射（只处理朝向碰撞点的速度分量）
         const dot = ball.vx * nx + ball.vy * ny;
         if (dot < 0) {
-            const restitution = PHYSICS.restitutionRim;
+            const restitution = PHYSICS.restitutionRim || PHYSICS.rimRestitution || 0.6;
             ball.vx = (ball.vx - 2 * dot * nx) * restitution;
             ball.vy = (ball.vy - 2 * dot * ny) * restitution;
         }
 
         // 碰撞后旋转变化（篮筐碰撞旋转更明显）
-        ball.rotationSpeed = ball.vx * PHYSICS.rotationFactor * PHYSICS.rimBounceRotationMultiplier;
+        const rotFactor = PHYSICS.rotationFactor || (GAME_CONFIG.ball && GAME_CONFIG.ball.rotationFactor) || 0.02;
+        const rimRotMult = PHYSICS.rimBounceRotationMultiplier || 1.5;
+        ball.rotationSpeed = ball.vx * rotFactor * rimRotMult;
 
         // 防止卡在碰撞点：沿法线方向推开
         ball.x += nx * 2;

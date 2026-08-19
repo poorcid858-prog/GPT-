@@ -12,16 +12,15 @@
 
     /**
      * 创建篮筐对象。
-     * @param {number} canvasWidth 画布宽度（用于定位中心 X）
-     * @param {number} canvasHeight 画布高度（可选）
+     * @param {number} x 篮筐中心 X 坐标
+     * @param {number} y 篮筐中心 Y 坐标
      * @returns {object} 篮筐对象
      */
-    function createRim(canvasWidth, canvasHeight) {
-        const canvasH = canvasHeight || GAME_CONFIG.canvas.height;
-        const centerX = typeof canvasWidth === 'number' ? canvasWidth / 2 : GAME_CONFIG.canvas.width / 2;
-        const centerY = RIM_CONFIG.y;
+    function createRim(x, y) {
+        const centerX = typeof x === 'number' ? x : (GAME_CONFIG.canvas ? GAME_CONFIG.canvas.width / 2 : 400);
+        const centerY = typeof y === 'number' ? y : RIM_CONFIG.y;
         const halfWidth = RIM_CONFIG.width / 2;
-        const edgeRadius = RIM_CONFIG.edgeRadius;
+        const edgeRadius = RIM_CONFIG.edgeRadius || 6;
 
         return {
             x: centerX,                       // 篮筐中心 X
@@ -51,8 +50,8 @@
             // 是否为移动篮筐（更新位置时由外部启用）
             moving: false,
             moveCenterX: centerX,
-            moveRange: RIM_CONFIG.moveRange,
-            moveSpeed: RIM_CONFIG.moveSpeed
+            moveRange: RIM_CONFIG.moveRange || 0,
+            moveSpeed: RIM_CONFIG.moveSpeed || 0
         };
     }
 

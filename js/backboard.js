@@ -6,7 +6,7 @@
 (function (global) {
     'use strict';
 
-    const BACKBOARD_CONFIG = GAME_CONFIG.rim.backboard;
+    const BACKBOARD_CONFIG = (GAME_CONFIG.rim && GAME_CONFIG.rim.backboard) || { width: 10, height: 120 };
     const RIM_CONFIG = GAME_CONFIG.rim;
 
     /**
@@ -22,7 +22,7 @@
             y: rimY - BACKBOARD_CONFIG.height / 2,       // 篮板居中在篮筐高度
             width: BACKBOARD_CONFIG.width,
             height: BACKBOARD_CONFIG.height,
-            restitution: GAME_CONFIG.physics.restitutionBackboard
+            restitution: (GAME_CONFIG.physics && GAME_CONFIG.physics.restitutionBackboard) || 0.75
         };
     }
 

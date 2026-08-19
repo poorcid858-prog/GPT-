@@ -87,6 +87,25 @@
   window.registerModule = register;
 
   // ====== 4.5 子模块集成（glue code）======
+
+  /**
+   * 球出界 / 超时 / 卡死判定（简化版，供 scoring 更新钩子使用）
+   */
+  function isBallOutOfBounds(ball, gs) {
+    if (!ball) return false;
+    // 飞行超时
+    if (ball.flightTime >= 3.0) return true;
+    // 出界
+    const margin = 100;
+    if (ball.x < -margin || ball.x > 800 + margin || ball.y > 600 + margin) return true;
+    // 卡死（飞行超过 1 秒后速度极低）
+    if (ball.flightTime > 1.0) {
+      const speed = Math.hypot(ball.vx, ball.vy);
+      if (speed < 5) return true;
+    }
+    return false;
+  }
+
   /**
    * 把子模块的纯函数挂到 GameModules.updates / .renders / .inputs
    * 让主循环每帧自动调用它们
@@ -96,35 +115,37 @@
 
     // ---- 渲染钩子：按绘制顺序加入 ----
 
-    // 1. 背景层（球场 / 场地装饰）
-    if (window.Court || typeof window.drawCourt === 'function') {
-      reg.renders.push(function renderCourt(gs, ctx) {
-        if (window.Court && typeof window.Court.render === 'function') window.Court.render(gs, ctx);
-        else if (typeof window.drawCourt === 'function') window.drawCourt(ctx);
+    // 1. 篮板（Backboard 单独绘制）
+    if (window.Backboard && typeof window.Backboard.drawBackboard === 'function') {
+      reg.renders.push((gs, ctx) => {
+        try { window.Backboard.drawBackboard(ctx, gs.backboard); } catch(e){}
       });
     }
 
-    // 2. 篮板 / 篮筐 / 篮网（B 包）
-    if (window.Backboard && typeof window.Backboard.drawBackboard === 'function') {
-      reg.renders.push((gs, ctx) => { try { window.Backboard.drawBackboard(ctx, gs.backboard); } catch(e){} });
-    }
+    // 2. 篮筐 + 篮网（rim.js 的 drawRim 已包含篮网绘制）
     if (window.Rim && typeof window.Rim.drawRim === 'function') {
-      reg.renders.push((gs, ctx) => { try { window.Rim.drawRim(ctx, gs.rim); } catch(e){} });
-    }
-    if (typeof window.drawNet === 'function') {
-      reg.renders.push((gs, ctx) => { try { window.drawNet(ctx, gs.rim, gs.net); } catch(e){} });
+      reg.renders.push((gs, ctx) => {
+        try { window.Rim.drawRim(ctx, gs.rim); } catch(e){}
+      });
     }
 
     // 3. 篮球
     if (window.BallModule && typeof window.BallModule.drawBall === 'function') {
-      reg.renders.push((gs, ctx) => { try { window.BallModule.drawBall(ctx, gs.ball); } catch(e){} });
+      reg.renders.push((gs, ctx) => {
+        try { window.BallModule.drawBall(ctx, gs.ball); } catch(e){}
+      });
     }
 
-    // 4. 瞄准线 / 轨迹预测（瞄准中）
+    // 4. 瞄准辅助线（仅 AIMING 阶段且按下中）
     if (typeof window.drawAimGuide === 'function') {
       reg.renders.push((gs, ctx) => {
         if (gs.phase !== STATE.AIMING || !gs.input || !gs.input.isDown) return;
-        try { window.drawAimGuide(ctx, gs.ball, gs.input.start, gs.input.current, gs.currentShot.power); } catch(e){}
+        try {
+          const dragStart = { x: gs.input.startX, y: gs.input.startY };
+          const dragCurrent = { x: gs.input.currentX, y: gs.input.currentY };
+          const power = (gs.ball && gs.ball.aimPower) || 0;
+          window.drawAimGuide(ctx, gs.ball, dragStart, dragCurrent, power);
+        } catch(e){}
       });
     }
 
@@ -149,44 +170,84 @@
 
     // ---- 更新钩子 ----
 
-    // 8. 物理 / 碰撞 / 进球判定（B 包）
+    // 8. 物理（仅 BALL_FLYING 阶段）
     if (window.Physics && typeof window.Physics.updatePhysics === 'function') {
       reg.updates.push((gs, dt) => {
         if (gs.phase !== STATE.BALL_FLYING) return;
         try { window.Physics.updatePhysics(gs.ball, dt); } catch(e){ console.error(e); }
       });
     }
+
+    // 9. 碰撞检测与响应（仅 BALL_FLYING 阶段）
     if (window.Collision) {
       reg.updates.push((gs, dt) => {
         if (gs.phase !== STATE.BALL_FLYING) return;
         try {
-          if (typeof window.Collision.checkRimEdgeCollision === 'function') window.Collision.checkRimEdgeCollision(gs.ball, gs.rim);
-          if (typeof window.Collision.checkBackboardCollision === 'function') window.Collision.checkBackboardCollision(gs.ball, gs.backboard);
-        } catch(e){}
-      });
-    }
-    if (window.Scoring) {
-      reg.updates.push((gs, dt) => {
-        if (gs.phase !== STATE.BALL_FLYING || gs.shotResolved) return;
-        try {
-          if (typeof window.Scoring.checkScore === 'function') window.Scoring.checkScore(gs);
+          // 篮筐边缘碰撞（handleRimCollision 包含检测+响应）
+          if (typeof window.Collision.handleRimCollision === 'function') {
+            window.Collision.handleRimCollision(gs.ball, gs.rim);
+          }
+          // 篮板碰撞（检测+响应一体）
+          if (typeof window.Collision.checkBackboardCollision === 'function') {
+            window.Collision.checkBackboardCollision(gs.ball, gs.backboard);
+          }
         } catch(e){}
       });
     }
 
-    // 9. 篮网动画
+    // 10. 进球 / Miss 判定（仅 BALL_FLYING 且未结算）
+    if (window.Scoring) {
+      reg.updates.push((gs, dt) => {
+        if (gs.phase !== STATE.BALL_FLYING || gs.currentShot.resolved) return;
+        try {
+          if (typeof window.Scoring.isScored === 'function' && window.Scoring.isScored(gs.ball, gs.rim)) {
+            // 命中
+            window.Scoring.onScore(gs, gs.ball);
+            gs.currentShot.resolved = true;
+            gs.currentShot.isScored = true;
+            gs.currentShot.hitRim = gs.ball.hitRim;
+            // 触发篮网动画
+            if (typeof window.triggerNetSwing === 'function' && gs.net) {
+              window.triggerNetSwing(gs.net);
+            } else if (gs.rim && gs.rim.net && typeof window.Rim !== 'undefined' && typeof window.Rim.onBallPassesRim === 'function') {
+              window.Rim.onBallPassesRim(gs.rim);
+            }
+          } else if (isBallOutOfBounds(gs.ball, gs)) {
+            // Miss（出界 / 超时 / 卡死）
+            window.Scoring.onMiss(gs, gs.ball);
+            gs.currentShot.resolved = true;
+            gs.currentShot.isScored = false;
+          }
+        } catch(e){ console.error(e); }
+      });
+    }
+
+    // 11. 篮网动画
     if (typeof window.updateNet === 'function') {
       reg.updates.push((gs, dt) => { try { window.updateNet(gs.net, dt); } catch(e){} });
     }
 
-    // 10. 计时 / Combo / 命中处理（C 包：GameRules）
-    if (window.GameRules && typeof window.GameRules.updateGameState === 'function') {
-      reg.updates.push((gs, dt) => { try { window.GameRules.updateGameState(gs, dt); } catch(e){} });
-    } else if (window.TimerSystem && typeof window.TimerSystem.updateTimer === 'function') {
-      reg.updates.push((gs, dt) => { try { window.TimerSystem.updateTimer(dt, gs, null); } catch(e){} });
+    // 12. 倒计时（TimerSystem）
+    if (window.TimerSystem && typeof window.TimerSystem.updateTimer === 'function') {
+      reg.updates.push((gs, dt) => {
+        try {
+          window.TimerSystem.updateTimer(dt, gs, null);
+          // 同步到 remainingTime（UI 读取此字段）
+          if (typeof gs.timeLeft === 'number') {
+            gs.remainingTime = gs.timeLeft;
+          }
+        } catch(e){}
+      });
     }
 
-    // 11. 屏幕震动衰减
+    // 13. Combo 动画推进
+    if (window.ComboSystem && typeof window.ComboSystem.updateComboAnimation === 'function') {
+      reg.updates.push((gs, dt) => {
+        try { window.ComboSystem.updateComboAnimation(gs, dt); } catch(e){}
+      });
+    }
+
+    // 14. 屏幕震动衰减
     if (typeof window.updateShake === 'function' && window.__shake) {
       reg.updates.push((gs, dt) => { try { window.updateShake(window.__shake, dt); } catch(e){} });
     }
@@ -194,30 +255,54 @@
     // ---- 输入钩子：Pointer 事件 ----
     reg.inputs.push(function onInputModule(gs, input, dt) {
       if (!input) return;
-      // pointerup（投篮释放）
-      if (input.lastRelease && gs.phase === STATE.AIMING && window.Shot) {
-        try {
-          if (typeof window.Shot.releaseShot === 'function') {
-            window.Shot.releaseShot(gs.ball, input.lastRelease.start, input.lastRelease.end, gs);
-          }
-        } catch (e) { console.error(e); }
-      }
+
       // pointerdown（开始瞄准）
       if (input.justPressed && gs.phase === STATE.READY && window.Shot) {
         try {
           if (typeof window.Shot.startAiming === 'function') {
             window.Shot.startAiming(gs.ball, input.startX, input.startY);
-            gs.phase = STATE.AIMING;
+            setState(gs, STATE.AIMING);
           }
         } catch (e) { console.error(e); }
       }
+
       // pointermove（更新瞄准方向）
       if (input.isDown && gs.phase === STATE.AIMING && window.Shot) {
         try {
           if (typeof window.Shot.updateAiming === 'function') {
-            window.Shot.updateAiming(gs.ball, input.currentX, input.currentY, gs.currentShot.power);
+            window.Shot.updateAiming(gs.ball, input.currentX, input.currentY);
+          }
+          // 同步力度到 currentShot（供 UI 消费）
+          if (gs.ball && typeof gs.ball.aimPower === 'number') {
+            gs.currentShot.power = gs.ball.aimPower;
           }
         } catch (e) {}
+      }
+
+      // pointerup（投篮释放）
+      if (input.lastRelease && gs.phase === STATE.AIMING && window.Shot) {
+        try {
+          if (typeof window.Shot.releaseShot === 'function') {
+            const dragStart = { x: input.startX, y: input.startY };
+            const dragEnd = { x: input.currentX, y: input.currentY };
+            const result = window.Shot.releaseShot(gs.ball, dragStart, dragEnd, gs);
+            if (result) {
+              // 出手成功 → AIMING → SHOOTING → BALL_FLYING
+              setState(gs, STATE.SHOOTING);
+              setState(gs, STATE.BALL_FLYING);
+              // 记录出手信息
+              gs.currentShot.startTime = performance.now();
+              gs.currentShot.startX = gs.ball.x;
+              gs.currentShot.startY = gs.ball.y;
+              gs.currentShot.vx = result.vx;
+              gs.currentShot.vy = result.vy;
+              gs.currentShot.power = result.power;
+              gs.currentShot.resolved = false;
+              gs.currentShot.isScored = false;
+              gs.currentShot.hitRim = false;
+            }
+          }
+        } catch (e) { console.error(e); }
       }
     });
   }
@@ -382,28 +467,38 @@
     if (typeof BallModule !== 'undefined') {
       gameState.ball = BallModule.createBall(BALL_START_X, BALL_START_Y);
     } else {
-      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: 18, vx: 0, vy: 0, rotation: 0, inFlight: false, shotResolved: false, hitRim: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0 };
+      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: 18, vx: 0, vy: 0, rotation: 0, rotationSpeed: 0, inFlight: false, shotResolved: false, hitRim: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0, startX: BALL_START_X, startY: BALL_START_Y, aimPower: 0 };
     }
 
     if (typeof Rim !== 'undefined' && typeof Rim.createRim === 'function') {
+      // createRim 接受 (x, y) 坐标
       gameState.rim = Rim.createRim(RIM_X, RIM_Y);
     } else {
       const rimW = GAME_CONFIG.rim.width;
-      gameState.rim = { x: RIM_X, y: RIM_Y, width: rimW, height: GAME_CONFIG.rim.height, rimLeft: { x: RIM_X - rimW/2, y: RIM_Y, radius: 6 }, rimRight: { x: RIM_X + rimW/2, y: RIM_Y, radius: 6 } };
+      gameState.rim = { x: RIM_X, y: RIM_Y, width: rimW, height: GAME_CONFIG.rim.height, edgeRadius: 6, rimLeft: { x: RIM_X - rimW/2, y: RIM_Y, radius: 6 }, rimRight: { x: RIM_X + rimW/2, y: RIM_Y, radius: 6 }, net: { state: 'normal', swing: 0, swingSpeed: 0, timer: 0, points: 6, netLength: 40 } };
     }
 
     if (typeof Backboard !== 'undefined' && typeof Backboard.createBackboard === 'function') {
-      gameState.backboard = Backboard.createBackboard(RIM_X + 15, RIM_Y - 50);
+      gameState.backboard = Backboard.createBackboard(RIM_X, RIM_Y);
     } else {
-      gameState.backboard = { x: RIM_X + 15, y: RIM_Y - 50, width: 10, height: 120, restitution: 0.75 };
+      const bbConf = (GAME_CONFIG.rim && GAME_CONFIG.rim.backboard) || { width: 10, height: 120 };
+      gameState.backboard = { x: RIM_X + (GAME_CONFIG.rim.width / 2) + 5, y: RIM_Y - bbConf.height / 2, width: bbConf.width, height: bbConf.height, restitution: 0.75 };
     }
 
-    // 篮网
-    gameState.net = { points: 6, swing: 0, swingSpeed: 0, state: 'normal', timer: 0 };
+    // 篮网（rim 内部已包含 net，这里同步一份到 gameState.net 供外部模块使用）
+    gameState.net = (gameState.rim && gameState.rim.net) || { points: 6, swing: 0, swingSpeed: 0, state: 'normal', timer: 0 };
 
     // 粒子和飘字数组（反馈系统用）
     gameState.particles = [];
     gameState.popups = [];
+
+    // 记录起始位置（restart 时归位用）
+    gameState.ballStartPos = { x: BALL_START_X, y: BALL_START_Y };
+
+    // 初始化屏幕震动对象
+    if (typeof createShake === 'function') {
+      window.__shake = createShake();
+    }
 
     // 7.4 UI 绑定
     const ui = bindUI(gameState);
@@ -487,15 +582,100 @@
       input.justPressed = false;
     }
     function onUpdate(dt) {
-      // 状态机阶段：LOADING → MENU → READY
+      // 状态机阶段：LOADING → READY（显示开始面板）
       if (gameState.phase === STATE.LOADING) {
         setState(gameState, STATE.READY);
         ui.showStart();
       }
+
+      // 执行所有注册的 update 钩子（物理、碰撞、计分、计时等）
       for (let i = 0; i < reg.updates.length; i++) {
         try { reg.updates[i](gameState, dt); } catch (e) { console.error(e); }
       }
+
+      // —— 投篮结果状态流转 ——
+      // BALL_FLYING 且本球已结算 → 短暂进入 SCORED / MISSED
+      if (gameState.phase === STATE.BALL_FLYING && gameState.currentShot.resolved) {
+        const scored = gameState.currentShot.isScored;
+        if (scored) {
+          setState(gameState, STATE.SCORED);
+        } else {
+          setState(gameState, STATE.MISSED);
+        }
+      }
+
+      // SCORED / MISSED 停留 600ms 后回到 READY（或触发 Game Over）
+      if (gameState.phase === STATE.SCORED || gameState.phase === STATE.MISSED) {
+        const elapsed = performance.now() - gameState.phaseEnteredAt;
+        if (elapsed > 600) {
+          // 检查时间是否已耗尽
+          const timeUp = (typeof gameState.timeLeft === 'number' && gameState.timeLeft <= 0) ||
+                         (typeof gameState.remainingTime === 'number' && gameState.remainingTime <= 0);
+          if (timeUp) {
+            // 游戏结束
+            doGameOver();
+          } else {
+            // 回到准备态，重置篮球
+            setState(gameState, STATE.READY);
+            resetBallToStart();
+          }
+        }
+      }
+
+      // —— 游戏结束检测（非投篮状态时）——
+      if (gameState.phase !== STATE.GAME_OVER && gameState.phase !== STATE.LOADING
+          && gameState.phase !== STATE.SCORED && gameState.phase !== STATE.MISSED) {
+        const timeUp = (typeof gameState.timeLeft === 'number' && gameState.timeLeft <= 0) ||
+                       (typeof gameState.remainingTime === 'number' && gameState.remainingTime <= 0);
+        if (timeUp && (gameState.phase === STATE.READY || gameState.currentShot.resolved)) {
+          doGameOver();
+        }
+      }
+
       ui.refresh();
+    }
+
+    /**
+     * 重置篮球到起始位置
+     */
+    function resetBallToStart() {
+      if (window.BallModule && typeof window.BallModule.resetBall === 'function') {
+        window.BallModule.resetBall(gameState.ball);
+      } else {
+        const start = gameState.ballStartPos || { x: 240, y: 450 };
+        gameState.ball.x = start.x;
+        gameState.ball.y = start.y;
+        gameState.ball.vx = 0;
+        gameState.ball.vy = 0;
+        gameState.ball.prevX = start.x;
+        gameState.ball.prevY = start.y;
+        gameState.ball.rotation = 0;
+        gameState.ball.rotationSpeed = 0;
+        gameState.ball.flightTime = 0;
+        gameState.ball.inFlight = false;
+        gameState.ball.shotResolved = false;
+        gameState.ball.hitRim = false;
+      }
+    }
+
+    /**
+     * 执行游戏结束流程
+     */
+    function doGameOver() {
+      if (gameState.phase === STATE.GAME_OVER) return;
+      setState(gameState, STATE.GAME_OVER);
+      loop.pause();
+      const accuracy = gameState.shots > 0
+        ? Math.round((gameState.madeShots / gameState.shots) * 100)
+        : 0;
+      ui.showResult({
+        score: gameState.score,
+        shots: gameState.shots,
+        made:  gameState.madeShots,
+        miss:  gameState.missShots,
+        accuracy,
+        maxCombo: gameState.maxCombo
+      });
     }
     function onRender(ctx) {
       clearStage();
@@ -517,14 +697,16 @@
 
       /** 重新开始一局 */
       restart() {
-        // 子模块可在 window.GameModules 中注册 reset 钩子
-        if (typeof window.__resetRun === 'function') {
-          try { window.__resetRun(gameState); } catch (e) { console.error(e); }
-        }
         resetRunState(gameState);
         setState(gameState, STATE.READY);
         ui.hideResult();
         ui.hideStart();
+        // 重置篮球到起始位置
+        resetBallToStart();
+        // 重启计时器
+        if (window.TimerSystem && typeof window.TimerSystem.startTimer === 'function') {
+          window.TimerSystem.startTimer(gameState, GAME_CONFIG.duration);
+        }
         loop.resume();
       },
 
@@ -544,19 +726,7 @@
 
       /** 主动结算（计时归零时由 timer 模块触发） */
       gameOver(stats) {
-        setState(gameState, STATE.GAME_OVER);
-        loop.pause();
-        const accuracy = stats.shots > 0
-          ? Math.round((stats.made / stats.shots) * 100)
-          : 0;
-        ui.showResult({
-          score: stats.score,
-          shots: stats.shots,
-          made:  stats.made,
-          miss:  stats.miss,
-          accuracy,
-          maxCombo: stats.maxCombo
-        });
+        doGameOver();
       },
 
       /** 进入准备态（由开始按钮调用） */
@@ -564,6 +734,16 @@
         resetRunState(gameState);
         setState(gameState, STATE.READY);
         ui.hideStart();
+        // 重置篮球到起始位置
+        resetBallToStart();
+        // 启动计时器
+        if (window.TimerSystem && typeof window.TimerSystem.startTimer === 'function') {
+          window.TimerSystem.startTimer(gameState, GAME_CONFIG.duration);
+        } else {
+          gameState.timer = { running: true, urgent: false, blinkPhase: 0 };
+          gameState.timeLeft = GAME_CONFIG.duration;
+          gameState.remainingTime = GAME_CONFIG.duration;
+        }
         loop.resume();
       }
     };
