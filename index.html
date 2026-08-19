@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <title>GPT投篮 - 限时挑战</title>
+  <style>
+    /* ===== 设计令牌 ===== */
+    :root {
+      --bg-deep:        #0d1117;
+      --bg-court:       #1a2230;
+      --amber:          #f5a623;
+      --amber-glow:     rgba(245, 166, 35, .35);
+      --cookie:         #e8d8b0;
+      --line:           rgba(255, 255, 255, .14);
+      --muted:          #aeb6c4;
+      --text:           #eef1f6;
+      --danger:         #ff5252;
+      --good:           #4caf50;
+      --shadow:         0 6px 24px rgba(0, 0, 0, .45);
+      --radius:         12px;
+      --hud-pad:        14px;
+    }
+
+    /* ===== 基础 ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: radial-gradient(1200px 800px at 50% -10%, #2a3344 0%, var(--bg-deep) 60%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+                   "Segoe UI", "Hiragino Sans", sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+
+    /* ===== 游戏容器：响应式居中 ===== */
+    #game-stage {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #game-canvas {
+      display: block;
+      background: linear-gradient(180deg, #1f2735 0%, #11151c 100%);
+      box-shadow: var(--shadow);
+      border-radius: 8px;
+      touch-action: none;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+
+    /* ===== HUD：顶部信息条 ===== */
+    .hud {
+      position: absolute;
+      top: env(safe-area-inset-top, 0);
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--hud-pad) 18px;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .hud .panel {
+      background: rgba(13, 17, 23, .55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 8px 14px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      box-shadow: var(--shadow);
+    }
+    .hud .panel .label {
+      display: block;
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .hud .panel .value {
+      font-size: 22px;
+      line-height: 1.1;
+      color: var(--text);
+    }
+    .hud .panel.timer .value {
+      color: var(--amber);
+      font-variant-numeric: tabular-nums;
+    }
+    .hud .panel.timer.urgent .value {
+      color: var(--danger);
+      animation: pulse 0.5s ease-in-out infinite alternate;
+    }
+    .hud .panel.combo .value {
+      color: var(--amber);
+    }
+    @keyframes pulse {
+      from { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+      to   { transform: scale(1.12); text-shadow: 0 0 12px rgba(255, 82, 82, .8); }
+    }
+
+    /* ===== 开始按钮：覆盖层 ===== */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(13, 17, 23, .55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 10;
+      pointer-events: auto;
+      transition: opacity .3s ease;
+    }
+    .overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .overlay .card {
+      background: rgba(28, 34, 48, .95);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 32px 40px;
+      text-align: center;
+      max-width: 420px;
+      box-shadow: var(--shadow);
+    }
+    .overlay h1 {
+      font-size: 28px;
+      letter-spacing: 1px;
+      color: var(--amber);
+      margin-bottom: 8px;
+    }
+    .overlay p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 22px;
+    }
+    .btn {
+      display: inline-block;
+      background: var(--amber);
+      color: #1c2230;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease;
+      box-shadow: 0 6px 20px var(--amber-glow);
+    }
+    .btn:hover  { transform: translateY(-2px); box-shadow: 0 8px 24px var(--amber-glow); }
+    .btn:active { transform: translateY(0); }
+
+    /* ===== 结算面板 ===== */
+    #result-panel { display: none; }
+    #result-panel.visible { display: flex; }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--line);
+      font-size: 14px;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: rowIn .35s ease forwards;
+    }
+    .result-row:last-child { border-bottom: none; }
+    .result-row .key { color: var(--muted); }
+    .result-row .val { color: var(--text); font-weight: 700; }
+    .result-row.highlight .val { color: var(--amber); }
+    @keyframes rowIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部 HUD：分数 / 连击 / 计时 -->
+  <div id="game-stage">
+    <canvas id="game-canvas" width="800" height="600"></canvas>
+
+    <div class="hud" id="hud">
+      <div class="panel score">
+        <span class="label">SCORE</span>
+        <span class="value" id="ui-score">0</span>
+      </div>
+      <div class="panel combo">
+        <span class="label">COMBO</span>
+        <span class="value" id="ui-combo">×0</span>
+      </div>
+      <div class="panel timer" id="ui-timer-panel">
+        <span class="label">TIME</span>
+        <span class="value" id="ui-timer">30</span>
+      </div>
+    </div>
+
+    <!-- 开始覆盖层 -->
+    <div class="overlay" id="start-panel">
+      <div class="card">
+        <h1>🏀 GPT 投篮</h1>
+        <p>按住并拖拽篮球，瞄准篮筐出手<br>
+           30 秒内尽可能多的命中得分<br>
+           擦筐、空心、Perfect 都有奖励！</p>
+        <button class="btn" id="btn-start">开始游戏</button>
+      </div>
+    </div>
+
+    <!-- 结算覆盖层 -->
+    <div class="overlay hidden" id="result-panel">
+      <div class="card">
+        <h1>本局结束</h1>
+        <div id="result-rows"></div>
+        <button class="btn" id="btn-restart">再玩一次</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 加载顺序：配置 → 状态 → 循环 → 子模块 → 主入口 -->
+  <script src="config.js"></script>
+  <script src="game-state.js"></script>
+  <script src="game-loop.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

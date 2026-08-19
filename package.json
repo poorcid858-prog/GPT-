@@ -1,12 +1,11 @@
 {
   "name": "gpt-basketball",
   "version": "1.0.0",
-  "description": "GPT投篮 - Canvas 2D 投篮小游戏",
-  "private": true,
+  "description": "GPT投篮游戏",
   "scripts": {
-    "start": "npx http-server . -p 8080 -c-1",
-    "dev": "npx live-server --port=8080 --no-browser"
+    "start": "npx http-server -p 8080",
+    "dev": "npx live-server --port=8080"
   },
-  "keywords": ["basketball", "game", "canvas", "shooting"],
+  "keywords": ["game", "basketball"],
   "license": "MIT"
 }
