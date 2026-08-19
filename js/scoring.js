@@ -106,8 +106,13 @@
         gameState.madeShots += 1;
         gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
 
-        // 标记本球已结算
+        // 标记本球已结算（同时更新 ball 和 gameState.currentShot）
         ball.shotResolved = true;
+        if (gameState.currentShot) {
+            gameState.currentShot.resolved = true;
+            gameState.currentShot.isScored = true;
+            gameState.currentShot.hitRim = ball.hitRim;
+        }
 
         // 把得分明细写回 ball，供 UI 层读取（飘字 / 音效 / 粒子事件）
         ball.lastScoreDetail = {
@@ -137,6 +142,11 @@
         gameState.shotResolved = true;
         gameState.combo = 0;
         if (ball) ball.shotResolved = true;
+        // 同时更新 gameState.currentShot，确保状态流转正常
+        if (gameState.currentShot) {
+            gameState.currentShot.resolved = true;
+            gameState.currentShot.isScored = false;
+        }
     }
 
     const Api = {

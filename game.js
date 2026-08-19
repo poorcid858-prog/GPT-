@@ -93,15 +93,15 @@
    */
   function isBallOutOfBounds(ball, gs) {
     if (!ball) return false;
-    // 飞行超时
-    if (ball.flightTime >= 3.0) return true;
-    // 出界
-    const margin = 100;
+    // 飞行超时（增加到 4 秒，给篮球足够时间飞行）
+    if (ball.flightTime >= 4.0) return true;
+    // 出界（增加边界容差，避免篮球刚飞出画布就判定为 Miss）
+    const margin = 150;
     if (ball.x < -margin || ball.x > 800 + margin || ball.y > 600 + margin) return true;
-    // 卡死（飞行超过 1 秒后速度极低）
-    if (ball.flightTime > 1.0) {
+    // 卡死（飞行超过 1.5 秒后速度极低）
+    if (ball.flightTime > 1.5) {
       const speed = Math.hypot(ball.vx, ball.vy);
-      if (speed < 5) return true;
+      if (speed < 10) return true;
     }
     return false;
   }
@@ -114,6 +114,66 @@
     const reg = ensureModuleRegistry();
 
     // ---- 渲染钩子：按绘制顺序加入 ----
+
+    // 0. 人物（在篮球之前绘制，作为前景）
+    reg.renders.push((gs, ctx) => {
+      // 人物位置：篮球初始位置附近（左下方）
+      const playerX = (gs.ballStartPos && gs.ballStartPos.x) || 240;
+      const playerY = (gs.ballStartPos && gs.ballStartPos.y) || 450;
+      const playerWidth = 80;
+      const playerHeight = 120;
+
+      // 如果人物图片加载成功，绘制图片
+      if (playerLoaded && playerImage && playerImage.complete && playerImage.naturalWidth) {
+        ctx.save();
+        // 人物在篮球左侧偏下位置
+        ctx.drawImage(
+          playerImage,
+          playerX - playerWidth - 20,
+          playerY - playerHeight + 30,
+          playerWidth,
+          playerHeight
+        );
+        ctx.restore();
+      } else {
+        // 人物图片加载失败，绘制简笔人物
+        ctx.save();
+        const px = playerX - playerWidth - 20;
+        const py = playerY - playerHeight + 30;
+
+        // 头部
+        ctx.fillStyle = '#ffcc99';
+        ctx.beginPath();
+        ctx.arc(px + playerWidth / 2, py + 15, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 身体
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(px + playerWidth / 2 - 15, py + 27, 30, 40);
+
+        // 手臂（投篮姿势）
+        ctx.strokeStyle = '#ffcc99';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        // 左臂
+        ctx.beginPath();
+        ctx.moveTo(px + playerWidth / 2 - 15, py + 35);
+        ctx.lineTo(px + playerWidth / 2 - 30, py + 20);
+        ctx.stroke();
+        // 右臂（向上投篮）
+        ctx.beginPath();
+        ctx.moveTo(px + playerWidth / 2 + 15, py + 35);
+        ctx.lineTo(px + playerWidth / 2 + 30, py + 10);
+        ctx.stroke();
+
+        // 腿部
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(px + playerWidth / 2 - 12, py + 67, 10, 35);
+        ctx.fillRect(px + playerWidth / 2 + 2, py + 67, 10, 35);
+
+        ctx.restore();
+      }
+    });
 
     // 1. 篮板（Backboard 单独绘制）
     if (window.Backboard && typeof window.Backboard.drawBackboard === 'function') {
@@ -436,11 +496,62 @@
   }
 
   // ====== 7. 主流程 ======
+
+  // 背景图片缓存
+  let bgImage = null;
+  let bgLoaded = false;
+  let playerImage = null;
+  let playerLoaded = false;
+
+  /**
+   * 加载背景图片
+   * 优先加载 arena-background.png，失败则尝试 court-background.png
+   */
+  function loadBackgroundImage() {
+    const paths = [
+      'assets/images/arena-background.png',
+      'assets/images/court-background.png'
+    ];
+
+    for (const path of paths) {
+      const img = new Image();
+      img.onload = function() {
+        bgImage = img;
+        bgLoaded = true;
+        console.log('[game] 背景图片加载成功:', path);
+      };
+      img.onerror = function() {
+        console.warn('[game] 背景图片加载失败:', path);
+      };
+      img.src = path;
+    }
+  }
+
+  /**
+   * 加载人物图片
+   */
+  function loadPlayerImage() {
+    const img = new Image();
+    img.onload = function() {
+      playerImage = img;
+      playerLoaded = true;
+      console.log('[game] 人物图片加载成功');
+    };
+    img.onerror = function() {
+      console.warn('[game] 人物图片加载失败');
+    };
+    img.src = 'assets/player/player.png';
+  }
+
   async function bootstrap() {
     ensureModuleRegistry();
 
     // 7.1 加载所有可选子模块
     await loadAllModules();
+
+    // 7.1.0 加载背景和人物图片
+    loadBackgroundImage();
+    loadPlayerImage();
 
     // 7.1.1 子模块集成（glue code）
     // 把子模块的纯函数注册到主循环的 update / render / input 钩子
@@ -557,16 +668,25 @@
       canvas.addEventListener('mouseup',   onPointerUp);
     }
 
-    // 7.6 渲染前的清理（深色背景 + 简单边框）
+    // 7.6 渲染前的清理（绘制背景图片或纯色背景）
     function clearStage() {
       ctx.save();
       ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
-      ctx.fillStyle = '#11151c';
-      ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
-      // 球场线（占位，后续模块可重绘）
-      ctx.strokeStyle = 'rgba(255,255,255,.06)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(20, 20, LOGICAL_W - 40, LOGICAL_H - 40);
+
+      // 优先绘制背景图片
+      if (bgLoaded && bgImage && bgImage.complete && bgImage.naturalWidth) {
+        // 绘制背景图片，铺满整个画布
+        ctx.drawImage(bgImage, 0, 0, LOGICAL_W, LOGICAL_H);
+      } else {
+        // 背景图片加载失败，使用纯色背景
+        ctx.fillStyle = '#11151c';
+        ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+        // 球场线（占位，后续模块可重绘）
+        ctx.strokeStyle = 'rgba(255,255,255,.06)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(20, 20, LOGICAL_W - 40, LOGICAL_H - 40);
+      }
+
       ctx.restore();
     }
 

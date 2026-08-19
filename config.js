@@ -31,7 +31,7 @@ const GAME_CONFIG = {
     maxDragDistance: 240,    // 最大拖拽距离 (px)
     minPower: 0.6,           // 最小力度系数
     maxPower: 1.4,           // 最大力度系数
-    baseForce: 900,          // 基础弹射力
+    baseForce: 700,          // 基础弹射力（从 900 降低到 700，避免篮球飞出画布）
     rotationFactor: 0.02     // 旋转速度系数
   },
 

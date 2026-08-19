@@ -15,7 +15,7 @@ const TRAJECTORY_DT = 1 / 30
  * 真实物理应统一使用此值或 GAME_CONFIG.physics.* 的值
  */
 const TRAJECTORY_GRAVITY = 980
-const TRAJECTORY_BASE_FORCE = 900
+const TRAJECTORY_BASE_FORCE = 700  // 从 900 降低到 700，与 config.js 保持一致
 const TRAJECTORY_MIN_POWER = 0.6
 const TRAJECTORY_MAX_POWER = 1.4
 const TRAJECTORY_MAX_DRAG = 240
