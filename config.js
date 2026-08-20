@@ -37,16 +37,16 @@ const GAME_CONFIG = {
 
   // 篮筐参数
   rim: {
-    width: 90,               // 篮筐宽度
+    width: 70,               // 篮筐宽度（减小以匹配球大小）
     height: 8,               // 篮筐边缘厚度
     tolerance: 8,            // 判定容差 (px)
-    y: 180,                  // 篮筐 Y 坐标（设计分辨率）
+    y: 170,                  // 篮筐 Y 坐标（向下移动30px）
     edgeRadius: 6,           // 边缘碰撞点半径
     moveRange: 0,            // 移动篮筐范围（0 = 固定）
     moveSpeed: 0,            // 移动篮筐速度
     backboard: {             // 篮板参数（backboard.js 引用）
       width: 10,
-      height: 120
+      height: 80             // 篮板高度减小（从120到80）
     }
   },
 

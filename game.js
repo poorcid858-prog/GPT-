@@ -130,9 +130,9 @@
       // 人物位置：篮球初始位置左侧，人物在篮球出手位置的左边
       const playerX = (gs.ballStartPos && gs.ballStartPos.x) || 240;
       const playerY = (gs.ballStartPos && gs.ballStartPos.y) || 450;
-      // 人物高度 150px，宽度按比例缩放
-      const playerHeight = 180;
-      const playerWidth = playerHeight * 0.6; // 108px
+      // 人物高度 230px（增大以匹配比例），宽度按比例缩放
+      const playerHeight = 230;
+      const playerWidth = playerHeight * 0.6; // 138px
 
       // 根据游戏阶段选择人物图片
       let imageToUse = playerImage;
@@ -740,8 +740,8 @@
 
     // 7.3.1 初始化实体（篮球、篮筐、篮板、篮网）
     // 篮筐位置：画布右上方（逻辑坐标 800×600 中）
-    const RIM_X = LOGICAL_W * 0.72;
-    const RIM_Y = LOGICAL_H * 0.22;
+    const RIM_X = LOGICAL_W * 0.75;  // 向右移动：600/800 = 0.75
+    const RIM_Y = LOGICAL_H * 0.283; // 向下移动：170/600 = 0.283
     const BALL_START_X = LOGICAL_W * 0.30;
     const BALL_START_Y = LOGICAL_H * 0.75;
 
