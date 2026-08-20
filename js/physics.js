@@ -55,8 +55,8 @@
         // 力度：未传入则由拖拽距离映射
         let actualPower = power;
         if (actualPower === undefined || actualPower === null) {
-            const rawPower = dist / PHYSICS.maxDragDistance;
-            actualPower = Math.max(PHYSICS.minPower, Math.min(PHYSICS.maxPower, rawPower));
+            const rawPower = dist / 240;
+            actualPower = Math.max(0.6, Math.min(1.4, rawPower));
         }
 
         // 使用配置中的 baseForce，不再硬编码

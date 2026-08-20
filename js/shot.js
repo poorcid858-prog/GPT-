@@ -22,6 +22,10 @@
         ball.aimStart = { x: pointerX, y: pointerY };
         ball.aimCurrent = { x: pointerX, y: pointerY };
         ball.isAiming = true;
+        ball.aimPower = 1.0;
+        // 同步球的物理坐标到手部位置（确保飞行从正确位置出发）
+        ball.x = pointerX;
+        ball.y = pointerY;
     }
 
     /**
@@ -38,11 +42,11 @@
         } else {
             // 由拖拽距离实时计算力度
             const dist = Math.hypot(
-                ball.aimStart.x - pointerX,
-                ball.aimStart.y - pointerY
+                pointerX - ball.aimStart.x,
+                pointerY - ball.aimStart.y
             );
-            const rawPower = dist / PHYSICS.maxDragDistance;
-            ball.aimPower = Math.max(PHYSICS.minPower, Math.min(PHYSICS.maxPower, rawPower));
+            const rawPower = dist / 240; // maxDragDistance = 240
+            ball.aimPower = Math.max(0.6, Math.min(1.4, rawPower));
         }
     }
 
@@ -72,7 +76,6 @@
 
         // 计算出手初速度
         const launch = Physics.computeLaunchVelocity(start, current, ball.aimPower);
-        console.log('[SHOT] start:', JSON.stringify(start), 'current:', JSON.stringify(current), 'vx:', launch.vx.toFixed(0), 'vy:', launch.vy.toFixed(0), 'ball:', ball.x.toFixed(0), ball.y.toFixed(0));
 
         // 应用初速度到篮球
         ball.vx = launch.vx;

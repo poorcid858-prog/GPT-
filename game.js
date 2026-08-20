@@ -130,8 +130,8 @@
       const playerX = (gs.ballStartPos && gs.ballStartPos.x) || 240;
       const playerY = (gs.ballStartPos && gs.ballStartPos.y) || 450;
       // 人物高度 150px，宽度按比例缩放
-      const playerHeight = 150;
-      const playerWidth = playerHeight * 0.6; // 90px
+      const playerHeight = 180;
+      const playerWidth = playerHeight * 0.6; // 108px
 
       // 如果人物图片加载成功，绘制图片
       if (playerLoaded && playerImage && playerImage.complete && playerImage.naturalWidth) {
@@ -913,8 +913,15 @@
       // 直接绘制篮球（绕过 ball.js 的条件判断，确保始终可见）
       if (gameState.ball) {
         const b = gameState.ball;
+        // READY/AIMING 时球画在人物手上，飞行时用物理坐标
+        let drawX = b.x;
+        let drawY = b.y;
+        if (gameState.phase === STATE.READY || gameState.phase === STATE.AIMING) {
+          drawX = playerX; // 人物右手 x
+          drawY = playerY - 10; // 人物手部 y（腰部偏上）
+        }
         ctx.save();
-        ctx.translate(b.x, b.y);
+        ctx.translate(drawX, drawY);
         ctx.rotate(b.rotation || 0);
         // 篮球主体
         ctx.beginPath();
