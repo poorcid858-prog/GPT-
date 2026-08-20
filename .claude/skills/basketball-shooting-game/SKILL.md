@@ -2,6 +2,58 @@
 name: basketball-shooting-game
 description: 投篮游戏领域的专用 Skill，涵盖瞄准系统、篮球物理、篮筐碰撞、进球判定、得分规则、Combo 连击、Perfect Shot、Game Feel、测试与 Bug 预防等完整设计规范。当用户提到"投篮游戏""篮球""投篮""basketball""shooting"等关键词时使用，也作为 web-game-builder 总控 Skill 在投篮类游戏时的专项参考。
 ---
+
+# ⚠️ 前置步骤：编码/修复前必须读取以下资源
+
+> **不读这些资源就开始编码 = 违反本 Skill 规范。**
+> 本 Skill 依赖通用 `web-game-builder` Skill，两个 Skill 的资源都要读。
+
+## 📋 本 Skill 关联资源清单
+
+### Reference（必读 — 每次启动都读）
+| 文件 | 路径 | 内容 |
+|------|------|------|
+| 投篮游戏架构 | `.claude/references/game-architecture.md` | 状态机、渲染分层、输入层、游戏循环 |
+| 投篮游戏设计 | `.claude/references/game-design.md` | 玩法定义、30秒限时、得分机制 |
+| 得分规则 | `.claude/references/scoring-rules.md` | +2/+1/+1、Combo、三分、Perfect/Swish |
+| 篮筐碰撞判定 | `.claude/references/rim-collision-scoring.md` | 圆形碰撞、反弹系数、穿筐判定 |
+| 投篮物理模型 | `.claude/references/shooting-physics.md` | 抛物线、重力、初速度、drag 映射 |
+
+### Reference（分场景读取 — 按任务类型）
+| 任务场景 | 需要读取 |
+|----------|----------|
+| 物理/碰撞/飞行参数 | `.claude/references/shooting-physics.md` + `.claude/references/rim-collision-scoring.md` |
+| 得分/Combo/结算 | `.claude/references/scoring-rules.md` |
+| 架构/状态机/重构 | `.claude/references/game-architecture.md` |
+| 玩法设计/模式 | `.claude/references/game-design.md` |
+| 渲染/Canvas 绘制 | 同时读取通用 Skill 的 `game-canvas.md` |
+| UX/反馈/动画 | 同时读取通用 Skill 的 `game-ux.md` |
+
+### Script
+| 文件 | 路径 | 用途 | 调用时机 |
+|------|------|------|----------|
+| 物理测试 | `.claude/scripts/test_shooting_physics.py` | 验证投篮物理参数 | 修改 physics.js / config.js 后 |
+| 逻辑检查 | `.claude/scripts/check_game_logic.py` | 检查游戏逻辑完整性 | 修改 scoring/collision/game-rules 后 |
+
+### Asset
+| 目录 | 路径 | 内容 |
+|------|------|------|
+| 图片素材 | `assets/images/` | basketball.png, basketball-hoop.png, court-background.png, arena-background.png 等 |
+| 射手动画 | `assets/player/` | player.png（静止帧）+ player-shoot-1~6.png（投篮动画） |
+| 音效 | `assets/sounds/` | shoot.wav, rim-hit.wav, score.wav, swish.wav, perfect.wav, game-over.wav, button.wav |
+
+> **注意**：渲染人物时必须加载 `assets/player/player.png`，背景必须加载 `assets/images/arena-background.png`（fallback 到 `court-background.png`）。不要用纯色替代素材。
+
+### 工具参考（按需读取）
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| 浏览器验证 | 通用 Skill 的 `tools/browser-tool.md` | 验收测试时参考 |
+| 文件系统操作 | 通用 Skill 的 `tools/filesystem-tool.md` | 文件操作参考 |
+| 游戏验收 | 通用 Skill 的 `scripts/game_validator.py` | 项目验收 |
+| 资源验收 | 通用 Skill 的 `scripts/asset_validator.py` | 素材完整性验收 |
+
+---
+
 # Basketball Shooting Game Skill
 
 ## 1. Skill 基本信息

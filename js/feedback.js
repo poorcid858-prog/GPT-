@@ -2,11 +2,16 @@
  * 反馈弹窗模块
  * 负责：进球/Miss 等事件的瞬时文字反馈
  * 动画：scale 0.5 → 1.2 → 1，y 上移 40px，alpha 0.6s 渐隐
- * 文字：
- *   - Perfect 金色 PERFECT! +1
- *   - Swish 蓝色 SWISH!
- *   - Combo 放大 COMBO ×N
- *   - Miss 红色 MISS
+ *
+ * 进球分类反馈：
+ *   - Perfect:     金色 "PERFECT! +1"
+ *   - Swish:       蓝色 "SWISH!"
+ *   - Bank Shot:   绿色 "BANK SHOT!"
+ *   - Normal:      白色 "+N"
+ *   - Combo:       橙色 "COMBO ×N"
+ *   - Miss:        红色 "MISS"
+ *     - rimOut:    "RIM OUT!"
+ *     - airball:   "AIRBALL!"
  */
 
 /**
@@ -25,6 +30,9 @@ const POPUP_PEAK_RATIO = 0.3
  */
 const POPUP_COLOR_PERFECT = '#ffd700'   // 金
 const POPUP_COLOR_SWISH = '#4fc3ff'     // 蓝
+const POPUP_COLOR_BANKSHOT = '#4caf50'  // 绿（打板入框）
+const POPUP_COLOR_RIMOUT = '#ff9800'    // 橙（碰筐弹出）
+const POPUP_COLOR_AIRBALL = '#9e9e9e'   // 灰（三不沾）
 const POPUP_COLOR_COMBO = '#ff9800'     // 橙（强调连击）
 const POPUP_COLOR_MISS = '#ff5252'      // 红
 const POPUP_COLOR_NORMAL = '#ffffff'    // 白（普通得分）
@@ -37,7 +45,7 @@ const POPUP_COLOR_NORMAL = '#ffffff'    // 白（普通得分）
  * @param {string} text - 弹窗文字
  * @param {string} [color='#ffffff'] - 文字颜色
  * @param {boolean} [isPerfect=false] - 是否 Perfect（金色发光特效）
- * @param {Object} [opts] - 附加选项 {combo, big}
+ * @param {Object} [opts] - 附加选项 {combo, big, shotType}
  * @returns {Object} 弹窗对象
  */
 function spawnScorePopup(x, y, text, color = POPUP_COLOR_NORMAL, isPerfect = false, opts = {}) {
@@ -49,6 +57,9 @@ function spawnScorePopup(x, y, text, color = POPUP_COLOR_NORMAL, isPerfect = fal
         color,
         isPerfect: !!isPerfect,
         isCombo: !!opts.combo,
+        isBankshot: opts.shotType === 'bankshot',
+        isRimOut: opts.shotType === 'rimOut',
+        isAirball: opts.shotType === 'airball',
         big: !!opts.big,
         age: 0,
         life: POPUP_LIFE
@@ -60,9 +71,14 @@ function popupPerfect(x, y) {
     return spawnScorePopup(x, y, 'PERFECT! +1', POPUP_COLOR_PERFECT, true)
 }
 
-/** Swish 弹窗 */
+/** Swish 弹窗（空心入框） */
 function popupSwish(x, y) {
-    return spawnScorePopup(x, y, 'SWISH!', POPUP_COLOR_SWISH, false, { big: true })
+    return spawnScorePopup(x, y, 'SWISH!', POPUP_COLOR_SWISH, false, { big: true, shotType: 'swish' })
+}
+
+/** Bank Shot 弹窗（打板入框） */
+function popupBankshot(x, y) {
+    return spawnScorePopup(x, y, 'BANK SHOT!', POPUP_COLOR_BANKSHOT, false, { big: true, shotType: 'bankshot' })
 }
 
 /** Combo 弹窗 */
@@ -73,6 +89,16 @@ function popupCombo(x, y, n) {
 /** Miss 弹窗 */
 function popupMiss(x, y) {
     return spawnScorePopup(x, y, 'MISS', POPUP_COLOR_MISS, false)
+}
+
+/** Rim Out 弹窗（碰筐弹出） */
+function popupRimOut(x, y) {
+    return spawnScorePopup(x, y, 'RIM OUT!', POPUP_COLOR_RIMOUT, false, { big: true, shotType: 'rimOut' })
+}
+
+/** Airball 弹窗（三不沾） */
+function popupAirball(x, y) {
+    return spawnScorePopup(x, y, 'AIRBALL!', POPUP_COLOR_AIRBALL, false, { big: true, shotType: 'airball' })
 }
 
 /** 普通得分弹窗 */
@@ -153,6 +179,7 @@ function drawPopups(ctx, popups) {
 
         ctx.font = `bold ${fontSize}px sans-serif`
 
+        // Perfect：金色发光特效
         if (p.isPerfect) {
             ctx.shadowColor = '#ffd700'
             ctx.shadowBlur = 16
@@ -162,7 +189,9 @@ function drawPopups(ctx, popups) {
             ctx.lineWidth = 3
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
             ctx.strokeText(p.text, 0, 0)
-        } else if (p.isCombo) {
+        }
+        // Combo：橙色发光
+        else if (p.isCombo) {
             ctx.shadowColor = '#ff6600'
             ctx.shadowBlur = 10
             ctx.fillStyle = p.color
@@ -171,7 +200,9 @@ function drawPopups(ctx, popups) {
             ctx.lineWidth = 2
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'
             ctx.strokeText(p.text, 0, 0)
-        } else if (p.color === POPUP_COLOR_SWISH) {
+        }
+        // Swish（空心入框）：蓝色发光
+        else if (p.isSwish || p.color === POPUP_COLOR_SWISH) {
             ctx.shadowColor = '#4fc3ff'
             ctx.shadowBlur = 12
             ctx.fillStyle = p.color
@@ -180,13 +211,47 @@ function drawPopups(ctx, popups) {
             ctx.lineWidth = 2
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
             ctx.strokeText(p.text, 0, 0)
-        } else if (p.color === POPUP_COLOR_MISS) {
+        }
+        // Bank Shot（打板入框）：绿色发光
+        else if (p.isBankshot || p.color === POPUP_COLOR_BANKSHOT) {
+            ctx.shadowColor = '#4caf50'
+            ctx.shadowBlur = 12
+            ctx.fillStyle = p.color
+            ctx.fillText(p.text, 0, 0)
+            ctx.shadowBlur = 0
+            ctx.lineWidth = 2
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
+            ctx.strokeText(p.text, 0, 0)
+        }
+        // Rim Out（碰筐弹出）：橙色发光
+        else if (p.isRimOut || p.color === POPUP_COLOR_RIMOUT) {
+            ctx.shadowColor = '#ff9800'
+            ctx.shadowBlur = 10
+            ctx.fillStyle = p.color
+            ctx.fillText(p.text, 0, 0)
+            ctx.shadowBlur = 0
+            ctx.lineWidth = 2
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'
+            ctx.strokeText(p.text, 0, 0)
+        }
+        // Airball（三不沾）：灰色，无发光
+        else if (p.isAirball || p.color === POPUP_COLOR_AIRBALL) {
+            ctx.fillStyle = p.color
+            ctx.fillText(p.text, 0, 0)
+            ctx.lineWidth = 2
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)'
+            ctx.strokeText(p.text, 0, 0)
+        }
+        // Miss：红色
+        else if (p.color === POPUP_COLOR_MISS) {
             ctx.fillStyle = p.color
             ctx.fillText(p.text, 0, 0)
             ctx.lineWidth = 2
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'
             ctx.strokeText(p.text, 0, 0)
-        } else {
+        }
+        // 默认：白色
+        else {
             ctx.fillStyle = p.color
             ctx.fillText(p.text, 0, 0)
             ctx.lineWidth = 2

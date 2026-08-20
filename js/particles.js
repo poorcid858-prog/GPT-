@@ -2,6 +2,15 @@
  * 粒子系统模块
  * 负责：进球/碰撞等事件的爆发粒子动画
  * 约束：单次爆发 10~30 粒，受重力影响，500ms 内消亡
+ *
+ * 进球分类粒子颜色：
+ *   - Perfect:     金色 #ffd700
+ *   - Swish:       蓝色 #4fc3ff（空心入框）
+ *   - Bank Shot:   绿色 #4caf50（打板入框）
+ *   - Normal:      白色 #ffffff（普通进球）
+ *   - Rim Out:     橙色 #ff9800（碰筐弹出）
+ *   - Miss:        红色 #ff5252
+ *   - Airball:     灰色 #9e9e9e（三不沾，无粒子）
  */
 
 /**
@@ -23,6 +32,9 @@ const PARTICLE_MAX_SPEED = 240
 const PARTICLE_COLOR_PERFECT = '#ffd700'   // 金色（Perfect）
 const PARTICLE_COLOR_NORMAL = '#ffffff'    // 白色（普通）
 const PARTICLE_COLOR_SWISH = '#4fc3ff'     // 蓝色（Swish 空心）
+const PARTICLE_COLOR_BANKSHOT = '#4caf50'  // 绿色（Bank Shot 打板）
+const PARTICLE_COLOR_RIMOUT = '#ff9800'    // 橙色（Rim Out 碰筐弹出）
+const PARTICLE_COLOR_AIRBALL = '#9e9e9e'   // 灰色（Airball 三不沾）
 const PARTICLE_COLOR_MISS = '#ff5252'      // 红色（Miss）
 
 /**

@@ -10,6 +10,13 @@
  * Perfect：中心偏差 ≤ perfectThreshold
  * Swish：  未碰边缘（flight 全程 ball.hitRim === false）
  * 基础分 + Perfect 奖励（+1）+ Swish 奖励（+1）。
+ *
+ * 进球分类：
+ *   - bankshot:  碰篮板后进球（hitBackboard + isScored）
+ *   - swish:     空心入框（isSwish + isScored）
+ *   - rimOut:    碰筐弹出（hitRim + !isScored，球碰筐后未进）
+ *   - airball:   三不沾（未碰任何东西，直接出界/落地）
+ *   - normal:    普通进球（碰筐后进）
  */
 (function (global) {
     'use strict';
@@ -60,6 +67,16 @@
     }
 
     /**
+     * 判定是否打板入框（Bank Shot）。
+     * 条件：飞行中碰过篮板（hitBackboard === true）且进球。
+     * @param {object} ball 篮球对象
+     * @returns {boolean}
+     */
+    function isBankShot(ball) {
+        return !!ball.hitBackboard;
+    }
+
+    /**
      * 判定投篮是否为三分（根据出手点距离）。
      * @param {object} shootFrom 出手点 {x, y}
      * @param {object} rim       篮筐对象
@@ -73,13 +90,27 @@
     }
 
     /**
+     * 判定 Miss 的具体类型（供 UI 层使用不同反馈）。
+     * @param {object} ball 篮球对象
+     * @returns {string} 'rimOut' | 'airball' | 'normal'
+     */
+    function getMissType(ball) {
+        if (!ball) return 'normal';
+        // 碰筐弹出：碰过篮筐边缘但没进
+        if (ball.hitRim && !ball.inFlight) return 'rimOut';
+        // 三不沾：没碰过任何东西（既没碰篮筐也没碰篮板）
+        if (!ball.hitRim && !ball.hitBackboard) return 'airball';
+        return 'normal';
+    }
+
+    /**
      * 得分处理（仅修改数据，不操作 DOM / UI）。
      * 计算基础分 + Perfect 奖励 + Swish 奖励，并更新 gameState 与 combo。
      * 同时把本次得分的明细写回 ball，供 UI 层消费（飘字提示等）。
      *
      * @param {object} gameState 游戏状态（含 score / combo / shots / madeShots 等）
      * @param {object} ball      篮球对象
-     * @returns {{points:number, isPerfect:boolean, isSwish:boolean}} 得分明细
+     * @returns {{points:number, isPerfect:boolean, isSwish:boolean, shotType:string}} 得分明细
      */
     function onScore(gameState, ball) {
         const rim = gameState.rim;
@@ -90,9 +121,10 @@
             base = SCORING.threePoint;
         }
 
-        // Perfect / Swish 判定
+        // Perfect / Swish / Bank Shot 判定
         const perfect = isPerfect(ball, rim);
         const swish = isSwish(ball);
+        const bankshot = isBankShot(ball);
 
         // 累加得分（Perfect 与 Swish 奖励独立可叠加）
         let points = base;
@@ -112,15 +144,27 @@
             gameState.currentShot.resolved = true;
             gameState.currentShot.isScored = true;
             gameState.currentShot.hitRim = ball.hitRim;
+            gameState.currentShot.hitBackboard = ball.hitBackboard;
+            gameState.currentShot.isPerfect = perfect;
+            gameState.currentShot.isSwish = swish;
+            gameState.currentShot.isBankShot = bankshot;
         }
+
+        // 确定进球类型（用于 UI 分类反馈）
+        let shotType = 'normal';
+        if (bankshot) shotType = 'bankshot';
+        else if (swish) shotType = 'swish';
+        else if (perfect) shotType = 'perfect';
 
         // 把得分明细写回 ball，供 UI 层读取（飘字 / 音效 / 粒子事件）
         ball.lastScoreDetail = {
             base: base,
             perfect: perfect ? perfectBonus : 0,
             swish: swish ? swishBonus : 0,
+            bankshot: bankshot,
             perfectText: perfect,
             swishText: swish,
+            shotType: shotType,
             total: points
         };
 
@@ -128,6 +172,8 @@
             points: points,
             isPerfect: perfect,
             isSwish: swish,
+            isBankShot: bankshot,
+            shotType: shotType,
             base: base
         };
     }
@@ -141,11 +187,24 @@
     function onMiss(gameState, ball) {
         gameState.shotResolved = true;
         gameState.combo = 0;
+        gameState.missShots += 1;
         if (ball) ball.shotResolved = true;
+
+        // 确定 Miss 类型
+        const missType = getMissType(ball);
+
         // 同时更新 gameState.currentShot，确保状态流转正常
         if (gameState.currentShot) {
             gameState.currentShot.resolved = true;
             gameState.currentShot.isScored = false;
+            gameState.currentShot.missType = missType;
+            gameState.currentShot.hitRim = ball ? ball.hitRim : false;
+            gameState.currentShot.hitBackboard = ball ? ball.hitBackboard : false;
+        }
+
+        // 把 Miss 类型写回 ball，供 UI 层读取
+        if (ball) {
+            ball.lastMissType = missType;
         }
     }
 
@@ -153,7 +212,9 @@
         isScored: isScored,
         isPerfect: isPerfect,
         isSwish: isSwish,
+        isBankShot: isBankShot,
         isThreePoint: isThreePoint,
+        getMissType: getMissType,
         onScore: onScore,
         onMiss: onMiss
     };

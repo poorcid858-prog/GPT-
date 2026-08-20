@@ -80,6 +80,7 @@
         ball.flightTime = 0;
         ball.shotResolved = false;
         ball.hitRim = false;        // 重置 Swish 标记
+        ball.hitBackboard = false;  // 重置 Bank Shot 标记
         ball.isAiming = false;
 
         // 记录出手位置（用于三分判定）

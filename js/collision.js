@@ -87,8 +87,9 @@
                 // 微调垂直速度（增加真实感）
                 ball.vy += ball.vx * angleOffset * 0.5;
 
-                // 标记碰撞
+                // 标记碰撞（用于 Swish 判定和 Bank Shot 判定）
                 ball.hitRim = true;
+                ball.hitBackboard = true;
 
                 return true;
             }

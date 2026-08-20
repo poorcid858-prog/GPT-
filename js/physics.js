@@ -59,10 +59,10 @@
             actualPower = Math.max(PHYSICS.minPower, Math.min(PHYSICS.maxPower, rawPower));
         }
 
-        // 调整基础力，避免篮球飞出画布
-        // baseForce = 900 可能太大，这里降低为 700
-        const adjustedBaseForce = 700;
-        const force = adjustedBaseForce * actualPower;
+        // 使用配置中的 baseForce，不再硬编码
+        const ballConfig = GAME_CONFIG.ball || {};
+        const baseForce = ballConfig.baseForce || 700;
+        const force = baseForce * actualPower;
         const dirX = dx / dist;
         // Canvas Y 向下为正，向上拖拽返回负数 vy（向上抛）。
         // 这里保证投篮方向始终向上（允许轻微水平分量）

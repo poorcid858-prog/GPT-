@@ -103,6 +103,15 @@
       const speed = Math.hypot(ball.vx, ball.vy);
       if (speed < 10) return true;
     }
+    // 碰筐后弹开（碰筐后飞行超过 1 秒，且速度仍较大但不再接近篮筐）
+    if (ball.hitRim && ball.flightTime > 1.0) {
+      const speed = Math.hypot(ball.vx, ball.vy);
+      // 速度较大但不接近篮筐 → 判定为碰筐弹出
+      if (speed > 50 && gs.rim) {
+        const distToRim = Math.hypot(ball.x - gs.rim.x, ball.y - gs.rim.y);
+        if (distToRim > 100) return true;
+      }
+    }
     return false;
   }
 
@@ -117,20 +126,21 @@
 
     // 0. 人物（在篮球之前绘制，作为前景）
     reg.renders.push((gs, ctx) => {
-      // 人物位置：篮球初始位置附近（左下方）
+      // 人物位置：篮球初始位置左侧，人物在篮球出手位置的左边
       const playerX = (gs.ballStartPos && gs.ballStartPos.x) || 240;
       const playerY = (gs.ballStartPos && gs.ballStartPos.y) || 450;
-      const playerWidth = 80;
-      const playerHeight = 120;
+      // 人物高度 150px，宽度按比例缩放
+      const playerHeight = 150;
+      const playerWidth = playerHeight * 0.6; // 90px
 
       // 如果人物图片加载成功，绘制图片
       if (playerLoaded && playerImage && playerImage.complete && playerImage.naturalWidth) {
         ctx.save();
-        // 人物在篮球左侧偏下位置
+        // 人物在篮球左侧偏下位置（人物底部对齐篮球下方）
         ctx.drawImage(
           playerImage,
-          playerX - playerWidth - 20,
-          playerY - playerHeight + 30,
+          playerX - playerWidth - 25,
+          playerY - playerHeight + 20,
           playerWidth,
           playerHeight
         );
@@ -138,8 +148,8 @@
       } else {
         // 人物图片加载失败，绘制简笔人物
         ctx.save();
-        const px = playerX - playerWidth - 20;
-        const py = playerY - playerHeight + 30;
+        const px = playerX - playerWidth - 25;
+        const py = playerY - playerHeight + 20;
 
         // 头部
         ctx.fillStyle = '#ffcc99';
@@ -192,7 +202,7 @@
     // 3. 篮球
     if (window.BallModule && typeof window.BallModule.drawBall === 'function') {
       reg.renders.push((gs, ctx) => {
-        try { window.BallModule.drawBall(ctx, gs.ball); } catch(e){}
+        try { window.BallModule.drawBall(ctx, gs.ball, gs); } catch(e){}
       });
     }
 
@@ -262,21 +272,118 @@
         try {
           if (typeof window.Scoring.isScored === 'function' && window.Scoring.isScored(gs.ball, gs.rim)) {
             // 命中
-            window.Scoring.onScore(gs, gs.ball);
+            const scoreResult = window.Scoring.onScore(gs, gs.ball);
             gs.currentShot.resolved = true;
             gs.currentShot.isScored = true;
             gs.currentShot.hitRim = gs.ball.hitRim;
+            gs.currentShot.hitBackboard = gs.ball.hitBackboard;
+
             // 触发篮网动画
             if (typeof window.triggerNetSwing === 'function' && gs.net) {
               window.triggerNetSwing(gs.net);
             } else if (gs.rim && gs.rim.net && typeof window.Rim !== 'undefined' && typeof window.Rim.onBallPassesRim === 'function') {
               window.Rim.onBallPassesRim(gs.rim);
             }
+
+            // 根据进球分类触发不同反馈效果
+            const rimX = gs.rim ? gs.rim.x : 400;
+            const rimY = gs.rim ? gs.rim.y : 180;
+
+            // 飘字反馈
+            if (scoreResult) {
+              if (scoreResult.isPerfect) {
+                // Perfect：金色飘字 + 金色粒子
+                if (typeof popupPerfect === 'function') {
+                  gs.popups.push(popupPerfect(rimX, rimY - 30));
+                }
+                if (typeof burstParticles === 'function' && gs.particles) {
+                  gs.particles.push(...burstParticles(rimX, rimY, '#ffd700', 25));
+                }
+                // 播放 perfect 音效
+                if (typeof playSound === 'function') {
+                  playSound('perfect');
+                }
+              } else if (scoreResult.isSwish) {
+                // Swish（空心入框）：蓝色飘字 + 蓝色粒子
+                if (typeof popupSwish === 'function') {
+                  gs.popups.push(popupSwish(rimX, rimY - 30));
+                }
+                if (typeof burstParticles === 'function' && gs.particles) {
+                  gs.particles.push(...burstParticles(rimX, rimY, '#4fc3ff', 20));
+                }
+                // 播放 swish 音效
+                if (typeof playSound === 'function') {
+                  playSound('swish');
+                }
+              } else if (scoreResult.isBankShot) {
+                // Bank Shot（打板入框）：绿色飘字 + 绿色粒子
+                if (typeof popupBankshot === 'function') {
+                  gs.popups.push(popupBankshot(rimX, rimY - 30));
+                }
+                if (typeof burstParticles === 'function' && gs.particles) {
+                  gs.particles.push(...burstParticles(rimX, rimY, '#4caf50', 20));
+                }
+                // 播放 score 音效
+                if (typeof playSound === 'function') {
+                  playSound('score');
+                }
+              } else {
+                // 普通进球：白色飘字 + 白色粒子
+                if (typeof popupScore === 'function') {
+                  gs.popups.push(popupScore(rimX, rimY - 30, scoreResult.points));
+                }
+                if (typeof burstParticles === 'function' && gs.particles) {
+                  gs.particles.push(...burstParticles(rimX, rimY, '#ffffff', 15));
+                }
+                // 播放 score 音效
+                if (typeof playSound === 'function') {
+                  playSound('score');
+                }
+              }
+
+              // Combo 反馈（连击数 >= 2 时显示）
+              if (gs.combo >= 2 && typeof popupCombo === 'function') {
+                gs.popups.push(popupCombo(rimX + 50, rimY - 50, gs.combo));
+              }
+            }
           } else if (isBallOutOfBounds(gs.ball, gs)) {
             // Miss（出界 / 超时 / 卡死）
-            window.Scoring.onMiss(gs, gs.ball);
+            const missResult = window.Scoring.onMiss(gs, gs.ball);
             gs.currentShot.resolved = true;
             gs.currentShot.isScored = false;
+
+            // 根据 Miss 类型触发不同反馈
+            const rimX = gs.rim ? gs.rim.x : 400;
+            const rimY = gs.rim ? gs.rim.y : 180;
+            const missType = gs.currentShot.missType || 'normal';
+
+            if (missType === 'rimOut') {
+              // 碰筐弹出：橙色飘字
+              if (typeof popupRimOut === 'function') {
+                gs.popups.push(popupRimOut(rimX, rimY - 30));
+              }
+              if (typeof burstParticles === 'function' && gs.particles) {
+                gs.particles.push(...burstParticles(rimX, rimY, '#ff9800', 12));
+              }
+              // 播放 rim-hit 音效
+              if (typeof playSound === 'function') {
+                playSound('rim-hit');
+              }
+            } else if (missType === 'airball') {
+              // 三不沾：灰色飘字
+              if (typeof popupAirball === 'function') {
+                gs.popups.push(popupAirball(gs.ball ? gs.ball.x : rimX, gs.ball ? gs.ball.y : rimY));
+              }
+              // 三不沾无粒子，无音效
+            } else {
+              // 普通 Miss：红色飘字
+              if (typeof popupMiss === 'function') {
+                gs.popups.push(popupMiss(rimX, rimY - 30));
+              }
+              if (typeof burstParticles === 'function' && gs.particles) {
+                gs.particles.push(...burstParticles(rimX, rimY, '#ff5252', 10));
+              }
+            }
           }
         } catch(e){ console.error(e); }
       });
@@ -578,7 +685,7 @@
     if (typeof BallModule !== 'undefined') {
       gameState.ball = BallModule.createBall(BALL_START_X, BALL_START_Y);
     } else {
-      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: 18, vx: 0, vy: 0, rotation: 0, rotationSpeed: 0, inFlight: false, shotResolved: false, hitRim: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0, startX: BALL_START_X, startY: BALL_START_Y, aimPower: 0 };
+      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: 18, vx: 0, vy: 0, rotation: 0, rotationSpeed: 0, inFlight: false, shotResolved: false, hitRim: false, hitBackboard: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0, startX: BALL_START_X, startY: BALL_START_Y, aimPower: 0 };
     }
 
     if (typeof Rim !== 'undefined' && typeof Rim.createRim === 'function') {
@@ -775,6 +882,7 @@
         gameState.ball.inFlight = false;
         gameState.ball.shotResolved = false;
         gameState.ball.hitRim = false;
+        gameState.ball.hitBackboard = false;
       }
     }
 

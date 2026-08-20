@@ -50,6 +50,7 @@
             inFlight: false,       // 是否在飞行中
             shotResolved: false,   // 本次投篮是否已结算
             hitRim: false,         // 飞行中是否碰过篮筐边缘（Swish 判定）
+            hitBackboard: false,   // 飞行中是否碰过篮板（Bank Shot 判定）
             prevX: 0,              // 上一帧位置（穿筐/碰撞判定）
             prevY: 0,
             startX: startX,        // 记录初始位置
@@ -74,16 +75,24 @@
         ball.inFlight = false;
         ball.shotResolved = false;
         ball.hitRim = false;
+        ball.hitBackboard = false;
         ball.prevX = ball.x;
         ball.prevY = ball.y;
     }
 
     /**
      * 用 Canvas 原生绘制篮球（带旋转弧线）。
+     * 只在投篮状态（inFlight）时绘制，避免重复。
      * @param {CanvasRenderingContext2D} ctx
      * @param {object} ball 篮球对象
+     * @param {object} gameState 游戏状态（用于判断是否显示篮球）
      */
-    function drawBall(ctx, ball) {
+    function drawBall(ctx, ball, gameState) {
+        // 只在投篮飞行状态显示篮球，避免重复
+        if (!ball.inFlight && gameState && gameState.phase !== 'AIMING' && gameState.phase !== 'READY') {
+            return;
+        }
+
         if (imageLoaded && ballImage && ballImage.complete && ballImage.naturalWidth) {
             // 贴图可用：绘制贴图（带旋转）
             ctx.save();
