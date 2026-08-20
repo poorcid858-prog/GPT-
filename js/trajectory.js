@@ -59,6 +59,10 @@ function computeLaunchVelocityForTrajectory(dragStart, dragCurrent, power) {
     // 始终向上抛：Canvas 中 y 向下为正，向上为负
     const dirY = -Math.abs(dy) / dist
 
+    // 诊断日志：对比轨迹预测方向
+    console.log('[TRAJ] dragStart:', JSON.stringify(dragStart), 'dragCurrent:', JSON.stringify(dragCurrent),
+      'vx:', (dirX * force).toFixed(0), 'vy:', (dirY * force).toFixed(0));
+
     return {
         vx: dirX * force,
         vy: dirY * force,

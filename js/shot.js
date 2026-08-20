@@ -65,6 +65,9 @@
         const start = dragStart || ball.aimStart;
         const current = dragCurrent || ball.aimCurrent;
 
+        // 诊断日志：对比投篮方向
+        console.log('[SHOT] dragStart:', JSON.stringify(start), 'dragCurrent:', JSON.stringify(current));
+
         // 最小拖拽距离防误触
         const dragDist = Math.hypot(start.x - current.x, start.y - current.y);
         const minDrag = (typeof PHYSICS.minDragDistance === 'number') ? PHYSICS.minDragDistance : 20;

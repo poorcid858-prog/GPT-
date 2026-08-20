@@ -68,6 +68,10 @@
         // 这里保证投篮方向始终向上（允许轻微水平分量）
         const dirY = -Math.abs(dy) / dist;
 
+        // 诊断日志：对比实际投篮方向
+        console.log('[PHYS] dragStart:', JSON.stringify(dragStart), 'dragCurrent:', JSON.stringify(dragCurrent),
+          'vx:', (dirX * force).toFixed(0), 'vy:', (dirY * force).toFixed(0));
+
         return {
             vx: dirX * force,
             vy: dirY * force,
