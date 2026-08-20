@@ -493,6 +493,10 @@
         try {
           if (typeof window.Shot.startAiming === 'function') {
             window.Shot.startAiming(gs.ball, input.startX, input.startY);
+            // 球同步到人物头顶位置（确保从头部飞出）
+            const headY = gs.ballStartY - 230 + 35;
+            gs.ball.y = headY;
+            gs.ball.x = gs.ballStartX;
             setState(gs, STATE.AIMING);
             // 记录按下开始时间（用于力度控制）
             gs.pressStartTime = performance.now();

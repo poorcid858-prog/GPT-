@@ -145,6 +145,10 @@
      */
     function drawRim(ctx, rim) {
         const halfWidth = rim.width / 2;
+        // 安全兜底：确保 rim.net 永远存在且有效
+        if (!rim.net) {
+            rim.net = { state: 'normal', swing: 0, swingSpeed: 0, timer: 0, compress: 0, netLength: 45, points: 6 };
+        }
         const net = rim.net;
 
         // ---- 篮板 ----
