@@ -145,6 +145,7 @@
      */
     function drawRim(ctx, rim) {
         const halfWidth = rim.width / 2;
+        if (!rim.net) rim.net = { state:'normal', swing:0, swingSpeed:0, timer:0, compress:0, netLength:40, points:6 };
         const net = rim.net;
 
         // ---- 篮板 ----
