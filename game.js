@@ -226,14 +226,7 @@
     if (window.Rim && typeof window.Rim.drawRim === 'function') {
       reg.renders.push((gs, ctx) => {
         try {
-          // 绘制前强制双向同步，确保 drawRim 读到最新的篮网状态
-          if (gs.rim && gs.net && gs.rim.net !== gs.net) {
-            gs.rim.net = gs.net;
-          } else if (gs.net && gs.rim && !gs.rim.net) {
-            gs.rim.net = gs.net;
-          } else if (gs.rim && gs.rim.net && !gs.net) {
-            gs.net = gs.rim.net;
-          }
+          // 直接用 gs.rim（包含 gs.rim.net），不再做双向同步
           window.Rim.drawRim(ctx, gs.rim);
         } catch(e){}
       });
@@ -319,9 +312,9 @@
             gs.currentShot.hitRim = gs.ball.hitRim;
             gs.currentShot.hitBackboard = gs.ball.hitBackboard;
 
-            // 触发篮网动画
-            if (typeof window.triggerNetSwing === 'function' && gs.net) {
-              window.triggerNetSwing(gs.net);
+            // 触发篮网动画（直接操作 gs.rim.net）
+            if (typeof window.triggerNetSwing === 'function' && gs.rim && gs.rim.net) {
+              window.triggerNetSwing(gs.rim.net);
             } else if (gs.rim && gs.rim.net && typeof window.Rim !== 'undefined' && typeof window.Rim.onBallPassesRim === 'function') {
               window.Rim.onBallPassesRim(gs.rim);
             }
@@ -387,15 +380,15 @@
                 gs.popups.push(popupCombo(rimX + 50, rimY - 50, gs.combo));
               }
 
-              // +5秒奖励：进球时倒计时增加5秒（最大60秒）
+              // +10秒奖励：进球时倒计时增加10秒（最大60秒）
               const prevTimeLeft = gs.timeLeft || 0;
-              gs.timeLeft = Math.min(60, prevTimeLeft + 5);
+              gs.timeLeft = Math.min(60, prevTimeLeft + 10);
               gs.remainingTime = gs.timeLeft;
-              // +5S 飘字特效（在倒计时位置附近显示）
+              // +10S 飘字特效（画布中央）
               if (typeof spawnScorePopup === 'function') {
-                gs.popups.push(spawnScorePopup(400, 60, '+5S', '#00e676', false, { big: true }));
+                gs.popups.push(spawnScorePopup(LOGICAL_W / 2, LOGICAL_H / 2, '+10S', '#00e676', false, { big: true }));
               }
-              // +5S 音效（用 score 音效升调模拟）
+              // +10S 音效（用 score 音效升调模拟）
               if (typeof playSound === 'function') {
                 playSound('score', { rate: 1.5 });
               }
@@ -447,15 +440,10 @@
     if (typeof window.updateNet === 'function') {
       reg.updates.push((gs, dt) => {
         try {
-          // 双向同步：确保 gs.net 和 gs.rim.net 始终指向同一个对象
-          if (gs.rim && gs.rim.net && gs.net !== gs.rim.net) {
-            gs.net = gs.rim.net;
-          } else if (gs.net && gs.rim && !gs.rim.net) {
-            gs.rim.net = gs.net;
+          // 直接操作 gs.rim.net（不再维护 gs.net 副本）
+          if (gs.rim && gs.rim.net) {
+            window.updateNet(gs.rim.net, dt);
           }
-          window.updateNet(gs.net, dt);
-          // 更新后再次同步，确保 drawRim 读到最新状态
-          if (gs.rim && gs.net) gs.rim.net = gs.net;
         } catch(e){}
       });
     }
@@ -803,7 +791,7 @@
     const RIM_X = LOGICAL_W * 0.75;  // 向右移动：600/800 = 0.75
     const RIM_Y = LOGICAL_H * 0.283; // 向下移动：170/600 = 0.283
     const BALL_START_X = LOGICAL_W * 0.30;
-    const BALL_START_Y = LOGICAL_H * 0.44; // ≈264px，头部位置
+    const BALL_START_Y = LOGICAL_H * 0.75; // 450px，人物站立位置
 
     if (typeof BallModule !== 'undefined') {
       gameState.ball = BallModule.createBall(BALL_START_X, BALL_START_Y);
@@ -826,8 +814,7 @@
       gameState.backboard = { x: RIM_X + (GAME_CONFIG.rim.width / 2) + 5, y: RIM_Y - bbConf.height / 2, width: bbConf.width, height: bbConf.height, restitution: 0.75 };
     }
 
-    // 篮网（rim 内部已包含 net，这里同步一份到 gameState.net 供外部模块使用）
-    gameState.net = (gameState.rim && gameState.rim.net) || { points: 6, swing: 0, swingSpeed: 0, state: 'normal', timer: 0 };
+    // 篮网：只用 gameState.rim.net，不再维护 gameState.net 副本
 
     // 粒子和飘字数组（反馈系统用）
     gameState.particles = [];
@@ -1051,13 +1038,7 @@
         gameState.ball.hitRim = false;
         gameState.ball.hitBackboard = false;
       }
-      // 篮网属于篮筐实体，不随篮球重置；仅在 rim.net 不存在时同步
-      // 不要覆盖 rim.net，否则会重置篮网摆动状态
-      if (gameState.rim && !gameState.rim.net && gameState.net) {
-        gameState.rim.net = gameState.net;
-      } else if (gameState.rim && gameState.rim.net && !gameState.net) {
-        gameState.net = gameState.rim.net;
-      }
+      // 篮网属于篮筐实体，不随篮球重置，rim.net 在 rim 初始化时已设置，不动它
     }
 
     /**
@@ -1089,17 +1070,30 @@
         } catch (e) { console.error(e); }
       }
 
-      // 只在出手后绘制篮球；READY/AIMING 仅显示人物，避免出现两个球
-      const ballVisible = gameState.phase === STATE.BALL_FLYING ||
-                          gameState.phase === STATE.SCORED ||
-                          gameState.phase === STATE.MISSED;
-      if (ballVisible && gameState.ball) {
+      // 绘制篮球：飞行中用物理坐标，READY/AIMING 时画在人物头顶
+      const ballRadius = (typeof GAME_CONFIG !== 'undefined' && GAME_CONFIG.ball && GAME_CONFIG.ball.radius) || 25;
+      let drawBallX, drawBallY;
+      if (gameState.phase === STATE.READY || gameState.phase === STATE.AIMING) {
+        // 人物头顶：人物头部在 pDrawY + 15 附近
+        const headY = (gs => {
+          const px = (gs.ballStartPos && gs.ballStartPos.x) || 240;
+          const py = (gs.ballStartPos && gs.ballStartPos.y) || 450;
+          const pH = 230;
+          return py - pH + 35; // 头顶位置
+        })(gameState);
+        drawBallX = (gameState.ballStartPos && gameState.ballStartPos.x) || 240;
+        drawBallY = headY;
+      } else if (gameState.phase === STATE.BALL_FLYING ||
+                 gameState.phase === STATE.SCORED ||
+                 gameState.phase === STATE.MISSED) {
         const b = gameState.ball;
+        drawBallX = b.x;
+        drawBallY = b.y;
+      }
+      if (drawBallX !== undefined) {
         ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(b.rotation || 0);
-        // 使用配置中的半径，确保始终为25
-        const ballRadius = (typeof GAME_CONFIG !== 'undefined' && GAME_CONFIG.ball && GAME_CONFIG.ball.radius) || 25;
+        ctx.translate(drawBallX, drawBallY);
+        ctx.rotate((gameState.ball && gameState.ball.rotation) || 0);
         // 篮球主体
         ctx.beginPath();
         ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
