@@ -141,11 +141,11 @@
         if (typeof gameState.rim.width !== 'number') {
             gameState.rim.width = 90
         }
-        // 篮筐/篮网动画状态清空
-        if (gameState.net) {
-            gameState.net.state = 'normal'
-            gameState.net.swing = 0
-            gameState.net.timer = 0
+        // 篮网动画状态清空（直接操作 rim.net）
+        if (gameState.rim && gameState.rim.net) {
+            gameState.rim.net.state = 'normal'
+            gameState.rim.net.swing = 0
+            gameState.rim.net.timer = 0
         }
     }
 

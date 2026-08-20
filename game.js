@@ -1070,27 +1070,15 @@
         } catch (e) { console.error(e); }
       }
 
-      // 绘制篮球：飞行中用物理坐标，READY/AIMING 时画在人物头顶
+      // 绘制篮球：只在飞行/进球/失误时显示，投篮前不显示篮球
       const ballRadius = (typeof GAME_CONFIG !== 'undefined' && GAME_CONFIG.ball && GAME_CONFIG.ball.radius) || 25;
-      let drawBallX, drawBallY;
-      if (gameState.phase === STATE.READY || gameState.phase === STATE.AIMING) {
-        // 人物头顶：人物头部在 pDrawY + 15 附近
-        const headY = (gs => {
-          const px = (gs.ballStartPos && gs.ballStartPos.x) || 240;
-          const py = (gs.ballStartPos && gs.ballStartPos.y) || 450;
-          const pH = 230;
-          return py - pH + 35; // 头顶位置
-        })(gameState);
-        drawBallX = (gameState.ballStartPos && gameState.ballStartPos.x) || 240;
-        drawBallY = headY;
-      } else if (gameState.phase === STATE.BALL_FLYING ||
-                 gameState.phase === STATE.SCORED ||
-                 gameState.phase === STATE.MISSED) {
+      const ballVisible = gameState.phase === STATE.BALL_FLYING ||
+                          gameState.phase === STATE.SCORED ||
+                          gameState.phase === STATE.MISSED;
+      if (ballVisible && gameState.ball) {
         const b = gameState.ball;
-        drawBallX = b.x;
-        drawBallY = b.y;
-      }
-      if (drawBallX !== undefined) {
+        const drawBallX = b.x;
+        const drawBallY = b.y;
         ctx.save();
         ctx.translate(drawBallX, drawBallY);
         ctx.rotate((gameState.ball && gameState.ball.rotation) || 0);

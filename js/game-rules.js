@@ -262,8 +262,8 @@
         ball.inFlight = false
         ball.settled = true
         gameState.lastShotResult = 'SCORED'
-        // 7) 触发篮网动画
-        if (gameState.net) gameState.net.state = 'entering'
+        // 7) 触发篮网动画（直接操作 rim.net）
+        if (gameState.rim && gameState.rim.net) gameState.rim.net.state = 'entering'
         return 'SCORED'
     }
 
