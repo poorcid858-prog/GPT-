@@ -14,7 +14,7 @@
 
     // 默认时长与紧急阈值（可被外部配置覆盖）
     const DEFAULT_DURATION = 30
-    const URGENT_SECONDS = 5
+    const URGENT_SECONDS = 8
 
     // 闪烁周期（秒）：进入紧急后亮/暗各半周期
     const BLINK_PERIOD = 0.5

@@ -29,7 +29,8 @@ const SOUND_LIST = [
     { name: 'swish',     file: 'swish.wav' },
     { name: 'perfect',   file: 'perfect.wav' },
     { name: 'game-over', file: 'game-over.wav' },
-    { name: 'button',    file: 'button.wav' }
+    { name: 'button',    file: 'button.wav' },
+    { name: 'bgm',       file: 'bgm.wav' }
 ]
 
 /**
@@ -42,7 +43,8 @@ const SOUND_VOLUME = {
     'swish':     0.9,
     'perfect':   1.0,
     'game-over': 0.9,
-    'button':    0.5
+    'button':    0.5,
+    'bgm':       0.3
 }
 
 /**
@@ -178,7 +180,7 @@ function playSound(name, opts = {}) {
         const audio = entry.audio.cloneNode(true)
         audio.volume = opts.volume ?? SOUND_VOLUME[name] ?? 0.8
         audio.loop = !!opts.loop
-        if (opts.rate) audio.playbackRate = opts.rate
+        if (typeof opts.rate === 'number') audio.playbackRate = opts.rate
 
         const p = audio.play()
         if (p && p.catch) {
@@ -277,3 +279,54 @@ window.loadSounds = loadSounds;
 window.autoUnlockOnFirstInteraction = autoUnlockOnFirstInteraction;
 window.setMuted = setMuted;
 window.toggleMute = toggleMute;
+
+/**
+ * BGM 专用播放器（循环播放，音量独立于音效）
+ */
+let bgmAudio = null
+let bgmPlaying = false
+
+/**
+ * 播放背景音乐（循环）
+ * 在用户首次交互后调用，遵守浏览器 autoplay policy
+ */
+function playBgm() {
+    if (!SOUND_STATE.enabled || SOUND_STATE.muted) return
+    if (bgmPlaying && bgmAudio && !bgmAudio.paused) return
+
+    const entry = SOUND_STATE.sounds['bgm']
+    if (!entry || entry.failed || !entry.audio) return
+
+    try {
+        if (!bgmAudio) {
+            bgmAudio = entry.audio.cloneNode(true)
+            bgmAudio.loop = true
+            bgmAudio.volume = SOUND_VOLUME['bgm'] ?? 0.3
+        }
+        bgmAudio.currentTime = 0
+        const p = bgmAudio.play()
+        if (p && p.catch) {
+            p.catch(err => {
+                if (err && err.name === 'NotAllowedError') {
+                    // 用户尚未交互，忽略
+                }
+            })
+        }
+        bgmPlaying = true
+    } catch (err) {
+        console.warn('[sound-manager] playBgm failed:', err)
+    }
+}
+
+/**
+ * 暂停背景音乐
+ */
+function stopBgm() {
+    if (bgmAudio) {
+        try { bgmAudio.pause() } catch (e) { /* ignore */ }
+        bgmPlaying = false
+    }
+}
+
+window.playBgm = playBgm
+window.stopBgm = stopBgm

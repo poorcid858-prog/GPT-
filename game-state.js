@@ -128,7 +128,10 @@ function createInitialState() {
 
     // —— 准备投篮提示 ——
     showReadyHint: false,
-    readyHintTimer: 0
+    readyHintTimer: 0,
+
+    // —— 紧急倒计时音效追踪 ——
+    lastBeepSecond: -1
   };
 }
 
@@ -172,6 +175,7 @@ function resetRunState(gameState) {
   gameState.currentShot.isPerfect = false;
   gameState.currentShot.isSwish = false;
   gameState.pauseAccumulated = 0;
+  gameState.lastBeepSecond = -1;
 }
 
 /**

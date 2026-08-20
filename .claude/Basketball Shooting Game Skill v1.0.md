@@ -15,7 +15,7 @@
   - 投篮闯关
   - 投篮得分排行
   - 投篮 + Combo 连击
-- **依赖 Skill**：通用 Game Development Skill
+- **依赖 Skill**：[通用 Game Development Skill](.claude/skills/game-development/SKILL.md)
 - **核心目标**：
 
 > 将真实篮球投篮中的“瞄准 → 出手 → 飞行 → 篮筐碰撞 → 进球判定 → 得分 → 反馈”抽象成适合 Web 游戏实现的稳定游戏规则。
@@ -28,7 +28,7 @@
 
 工程方面应遵循：
 
-> **通用 Game Development Skill**
+> **[通用 Game Development Skill](.claude/skills/game-development/SKILL.md)**
 
 本 Skill 只负责投篮游戏领域的：
 

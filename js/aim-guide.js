@@ -88,9 +88,6 @@ function drawAimGuide(ctx, ball, dragStart, dragCurrent, power) {
     const dirX = dx / dist
     const dirY = dy / dist
 
-    // 诊断日志：对比瞄准方向
-    console.log('[AIM] dragStart:', JSON.stringify(dragStart), 'dragCurrent:', JSON.stringify(dragCurrent),
-      'dirX:', dirX.toFixed(2), 'dirY:', dirY.toFixed(2));
     // 方向线长度受当前 power 调制（蓄力越大线越长）
     const lineLength = Math.min(dist, 140) + 20
 

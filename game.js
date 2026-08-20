@@ -226,9 +226,14 @@
     if (window.Rim && typeof window.Rim.drawRim === 'function') {
       reg.renders.push((gs, ctx) => {
         try {
-          // 统一引用，确保进球反馈后的篮网状态仍由 drawRim 读取
-          if (gs.rim && !gs.rim.net && gs.net) gs.rim.net = gs.net;
-          if (gs.rim && gs.rim.net) gs.net = gs.rim.net;
+          // 绘制前强制双向同步，确保 drawRim 读到最新的篮网状态
+          if (gs.rim && gs.net && gs.rim.net !== gs.net) {
+            gs.rim.net = gs.net;
+          } else if (gs.net && gs.rim && !gs.rim.net) {
+            gs.rim.net = gs.net;
+          } else if (gs.rim && gs.rim.net && !gs.net) {
+            gs.net = gs.rim.net;
+          }
           window.Rim.drawRim(ctx, gs.rim);
         } catch(e){}
       });
@@ -381,6 +386,19 @@
               if (gs.combo >= 2 && typeof popupCombo === 'function') {
                 gs.popups.push(popupCombo(rimX + 50, rimY - 50, gs.combo));
               }
+
+              // +5秒奖励：进球时倒计时增加5秒（最大60秒）
+              const prevTimeLeft = gs.timeLeft || 0;
+              gs.timeLeft = Math.min(60, prevTimeLeft + 5);
+              gs.remainingTime = gs.timeLeft;
+              // +5S 飘字特效（在倒计时位置附近显示）
+              if (typeof spawnScorePopup === 'function') {
+                gs.popups.push(spawnScorePopup(400, 60, '+5S', '#00e676', false, { big: true }));
+              }
+              // +5S 音效（用 score 音效升调模拟）
+              if (typeof playSound === 'function') {
+                playSound('score', { rate: 1.5 });
+              }
             }
           } else if (isBallOutOfBounds(gs.ball, gs)) {
             // Miss（出界 / 超时 / 卡死）
@@ -427,7 +445,19 @@
 
     // 11. 篮网动画
     if (typeof window.updateNet === 'function') {
-      reg.updates.push((gs, dt) => { try { window.updateNet(gs.net, dt); } catch(e){} });
+      reg.updates.push((gs, dt) => {
+        try {
+          // 双向同步：确保 gs.net 和 gs.rim.net 始终指向同一个对象
+          if (gs.rim && gs.rim.net && gs.net !== gs.rim.net) {
+            gs.net = gs.rim.net;
+          } else if (gs.net && gs.rim && !gs.rim.net) {
+            gs.rim.net = gs.net;
+          }
+          window.updateNet(gs.net, dt);
+          // 更新后再次同步，确保 drawRim 读到最新状态
+          if (gs.rim && gs.net) gs.rim.net = gs.net;
+        } catch(e){}
+      });
     }
 
     // 12. 倒计时（TimerSystem）
@@ -438,6 +468,17 @@
           // 同步到 remainingTime（UI 读取此字段）
           if (typeof gs.timeLeft === 'number') {
             gs.remainingTime = gs.timeLeft;
+          }
+          // 最后 8 秒每秒播放一次紧急音效
+          const sec = Math.ceil(gs.timeLeft || 0);
+          if (gs.timeLeft <= 8 && gs.timeLeft > 0 && sec !== gs.lastBeepSecond) {
+            gs.lastBeepSecond = sec;
+            if (typeof playSound === 'function') {
+              playSound('button', { rate: 1.2 });
+            }
+          }
+          if (gs.timeLeft > 8) {
+            gs.lastBeepSecond = -1;
           }
         } catch(e){}
       });
@@ -601,7 +642,7 @@
           lastShownTimer = shown;
         }
         if ($timerPanel) {
-          if (shown <= 5) $timerPanel.classList.add('urgent');
+          if (shown <= 8) $timerPanel.classList.add('urgent');
           else $timerPanel.classList.remove('urgent');
         }
       }
@@ -1010,11 +1051,15 @@
         gameState.ball.hitRim = false;
         gameState.ball.hitBackboard = false;
       }
-      // 篮网属于篮筐实体，不随篮球重置；若外部模块曾替换引用则重新绑定
-      if (gameState.rim && gameState.rim.net) {
-        gameState.net = gameState.rim.net;
-      } else if (gameState.net && gameState.rim) {
-        gameState.rim.net = gameState.net;
+      // 篮网属于篮筐实体，不随篮球重置；强制双向同步
+      if (gameState.rim) {
+        if (gameState.rim.net && gameState.net !== gameState.rim.net) {
+          gameState.net = gameState.rim.net;
+        } else if (gameState.net && !gameState.rim.net) {
+          gameState.rim.net = gameState.net;
+        } else if (!gameState.net && gameState.rim.net) {
+          gameState.net = gameState.rim.net;
+        }
       }
     }
 
@@ -1023,6 +1068,7 @@
      */
     function doGameOver() {
       if (gameState.phase === STATE.GAME_OVER) return;
+      if (typeof stopBgm === 'function') stopBgm();
       if (typeof playSound === 'function') playSound('game-over');
       setState(gameState, STATE.GAME_OVER);
       loop.pause();
@@ -1118,6 +1164,9 @@
         if (window.TimerSystem && typeof window.TimerSystem.startTimer === 'function') {
           window.TimerSystem.startTimer(gameState, GAME_CONFIG.duration);
         }
+        // 重新播放背景音乐
+        if (typeof stopBgm === 'function') stopBgm();
+        if (typeof playBgm === 'function') playBgm();
         loop.resume();
       },
 
@@ -1155,6 +1204,8 @@
           gameState.timeLeft = GAME_CONFIG.duration;
           gameState.remainingTime = GAME_CONFIG.duration;
         }
+        // 播放背景音乐
+        if (typeof playBgm === 'function') playBgm();
         loop.resume();
       }
     };
