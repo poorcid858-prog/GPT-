@@ -234,13 +234,13 @@
     // 4. 瞄准辅助线（仅 AIMING 阶段且按下中）
     if (typeof window.drawAimGuide === 'function') {
       reg.renders.push((gs, ctx) => {
-        console.log('[AIM-RENDER] phase:', gs.phase, 'isDown:', gs.input ? gs.input.isDown : 'N/A');
+
         if (gs.phase !== STATE.AIMING || !gs.input || !gs.input.isDown) return;
         try {
           const dragStart = { x: gs.input.startX, y: gs.input.startY };
           const dragCurrent = { x: gs.input.currentX, y: gs.input.currentY };
           const power = (gs.ball && gs.ball.aimPower) || 0;
-          console.log('[AIM-RENDER] drawing aim guide, dragStart:', JSON.stringify(dragStart), 'dragCurrent:', JSON.stringify(dragCurrent));
+
           window.drawAimGuide(ctx, gs.ball, dragStart, dragCurrent, power);
         } catch(e){}
       });
@@ -982,11 +982,9 @@
       });
     }
     function onRender(ctx) {
-      console.log('[RENDER] onRender called, phase:', gameState.phase);
       clearStage();
       for (let i = 0; i < reg.renders.length; i++) {
         try {
-          console.log('[RENDER] executing render hook', i);
           reg.renders[i](gameState, ctx);
         } catch (e) { console.error(e); }
       }
@@ -1003,7 +1001,6 @@
           drawX = startPos.x; // 人物右手 x
           drawY = startPos.y - 10; // 人物手部 y（腰部偏上）
         }
-        console.log('[BALL-RENDER] drawing ball at:', drawX.toFixed(0), drawY.toFixed(0), 'phase:', gameState.phase);
         ctx.save();
         ctx.translate(drawX, drawY);
         ctx.rotate(b.rotation || 0);
