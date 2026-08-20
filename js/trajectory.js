@@ -51,9 +51,10 @@ function computePowerForTrajectory(dragStart, dragCurrent) {
  * @returns {{vx:number, vy:number, dist:number}}
  */
 function computeLaunchVelocityForTrajectory(dragStart, dragCurrent, power) {
-    // 跟随鼠标模式：轨迹方向与鼠标拖拽方向一致（ball.js 保持弹弓模式不动）
-    const dx = dragCurrent.x - dragStart.x
-    const dy = dragCurrent.y - dragStart.y
+    // 弹弓模式：投篮方向 = 拖拽反方向（向后拉，球向前飞）
+    // 与 physics.js 的 computeLaunchVelocity 保持一致
+    const dx = dragStart.x - dragCurrent.x
+    const dy = dragStart.y - dragCurrent.y
     const dist = Math.hypot(dx, dy) || 1
 
     const force = TRAJECTORY_BASE_FORCE * power

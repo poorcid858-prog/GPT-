@@ -270,3 +270,10 @@ function autoUnlockOnFirstInteraction() {
     document.addEventListener('keydown', handler, { once: true })
     document.addEventListener('touchstart', handler, { once: true })
 }
+
+// 导出到 window 对象，供 game.js 调用
+window.playSound = playSound;
+window.loadSounds = loadSounds;
+window.autoUnlockOnFirstInteraction = autoUnlockOnFirstInteraction;
+window.setMuted = setMuted;
+window.toggleMute = toggleMute;

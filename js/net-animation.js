@@ -178,3 +178,9 @@ function drawNet(ctx, rim, net) {
 
     ctx.restore()
 }
+
+// 导出到 window 对象，供 game.js 调用
+window.createNet = createNet;
+window.triggerNetSwing = triggerNetSwing;
+window.updateNet = updateNet;
+window.drawNet = drawNet;

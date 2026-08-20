@@ -22,7 +22,7 @@
         ball.aimStart = { x: pointerX, y: pointerY };
         ball.aimCurrent = { x: pointerX, y: pointerY };
         ball.isAiming = true;
-        ball.aimPower = 1.0;
+        ball.aimPower = 0; // 重置力度为 0，从零开始蓄力
         // 同步球的物理坐标到手部位置（确保飞行从正确位置出发）
         ball.x = pointerX;
         ball.y = pointerY;

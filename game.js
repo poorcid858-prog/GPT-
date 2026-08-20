@@ -466,9 +466,9 @@
       if (input.isDown && gs.phase === STATE.AIMING && window.Shot) {
         try {
           if (typeof window.Shot.updateAiming === 'function') {
-            // 按住时长控制力度：0~2秒映射到0.6~1.4的power
+            // 按住时长控制力度：0~3.5秒映射到0.6~1.4的power
             const holdTime = (performance.now() - gs.pressStartTime) / 1000; // 秒
-            const maxHoldTime = 2; // 最大蓄力时间（秒）
+            const maxHoldTime = 3.5; // 最大蓄力时间（秒），降低进度速度
             const power = 0.6 + Math.min(holdTime / maxHoldTime, 1) * (1.4 - 0.6);
             window.Shot.updateAiming(gs.ball, input.currentX, input.currentY, power);
           }
