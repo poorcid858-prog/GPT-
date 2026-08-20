@@ -72,6 +72,7 @@
 
         // 计算出手初速度
         const launch = Physics.computeLaunchVelocity(start, current, ball.aimPower);
+        console.log('[SHOT] start:', JSON.stringify(start), 'current:', JSON.stringify(current), 'vx:', launch.vx.toFixed(0), 'vy:', launch.vy.toFixed(0), 'ball:', ball.x.toFixed(0), ball.y.toFixed(0));
 
         // 应用初速度到篮球
         ball.vx = launch.vx;
