@@ -124,7 +124,11 @@ function createInitialState() {
 
     // —— 动画帧计数器（用于人物动画）——
     animFrame: 0,
-    animTimer: 0
+    animTimer: 0,
+
+    // —— 准备投篮提示 ——
+    showReadyHint: false,
+    readyHintTimer: 0
   };
 }
 

@@ -225,7 +225,12 @@
     // 2. 篮筐 + 篮网（rim.js 的 drawRim 已包含篮网绘制）
     if (window.Rim && typeof window.Rim.drawRim === 'function') {
       reg.renders.push((gs, ctx) => {
-        try { window.Rim.drawRim(ctx, gs.rim); } catch(e){}
+        try {
+          // 统一引用，确保进球反馈后的篮网状态仍由 drawRim 读取
+          if (gs.rim && !gs.rim.net && gs.net) gs.rim.net = gs.net;
+          if (gs.rim && gs.rim.net) gs.net = gs.rim.net;
+          window.Rim.drawRim(ctx, gs.rim);
+        } catch(e){}
       });
     }
 
@@ -282,7 +287,10 @@
         try {
           // 篮筐边缘碰撞（handleRimCollision 包含检测+响应）
           if (typeof window.Collision.handleRimCollision === 'function') {
-            window.Collision.handleRimCollision(gs.ball, gs.rim);
+            const rimHit = window.Collision.handleRimCollision(gs.ball, gs.rim);
+            if (rimHit && typeof playSound === 'function') {
+              playSound('rim-hit');
+            }
           }
           // 篮板碰撞（检测+响应一体）
           if (typeof window.Collision.checkBackboardCollision === 'function') {
@@ -300,6 +308,7 @@
           if (typeof window.Scoring.isScored === 'function' && window.Scoring.isScored(gs.ball, gs.rim)) {
             // 命中
             const scoreResult = window.Scoring.onScore(gs, gs.ball);
+            if (typeof playSound === 'function') playSound('score');
             gs.currentShot.resolved = true;
             gs.currentShot.isScored = true;
             gs.currentShot.hitRim = gs.ball.hitRim;
@@ -487,6 +496,10 @@
             const dragEnd = { x: input.currentX, y: input.currentY };
             const result = window.Shot.releaseShot(gs.ball, dragStart, dragEnd, gs);
             if (result) {
+              // 出手音效：仅在一次有效释放时触发
+              if (typeof playSound === 'function') {
+                playSound('shoot');
+              }
               // 出手成功 → AIMING → SHOOTING → BALL_FLYING
               setState(gs, STATE.SHOOTING);
               setState(gs, STATE.BALL_FLYING);
@@ -664,18 +677,24 @@
       'assets/images/court-background.png'
     ];
 
-    for (const path of paths) {
+    // 串行尝试：arena 成功后不再被较晚完成的 fallback 覆盖
+    function tryLoad(index) {
+      if (index >= paths.length || bgLoaded) return;
+      const path = paths[index];
       const img = new Image();
       img.onload = function() {
+        if (bgLoaded) return;
         bgImage = img;
         bgLoaded = true;
-        // 背景图片加载成功
       };
       img.onerror = function() {
         console.warn('[game] 背景图片加载失败:', path);
+        tryLoad(index + 1);
       };
       img.src = path;
     }
+
+    tryLoad(0);
   }
 
   /**
@@ -784,6 +803,14 @@
     // 7.4 UI 绑定
     const ui = bindUI(gameState);
 
+    // 首次用户交互时解锁音频，并预加载资源；音效失败不影响游戏
+    if (typeof autoUnlockOnFirstInteraction === 'function') {
+      autoUnlockOnFirstInteraction();
+    }
+    if (typeof loadSounds === 'function') {
+      loadSounds().catch(() => {});
+    }
+
     // 7.5 输入层（Pointer Events，统一鼠标/触屏）
     const input = {
       isDown: false,
@@ -838,23 +865,32 @@
       canvas.addEventListener('mouseup',   onPointerUp);
     }
 
-    // 7.6 渲染前的清理（绘制背景图片或纯色背景）
+    // 7.6 渲染前的清理（优先素材背景，失败时使用渐变球场背景）
     function clearStage() {
       ctx.save();
       ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
 
-      // 优先绘制背景图片
       if (bgLoaded && bgImage && bgImage.complete && bgImage.naturalWidth) {
-        // 绘制背景图片，铺满整个画布
+        // 背景图片加载成功：铺满逻辑画布
         ctx.drawImage(bgImage, 0, 0, LOGICAL_W, LOGICAL_H);
       } else {
-        // 背景图片加载失败，使用纯色背景
-        ctx.fillStyle = '#11151c';
+        // 图片异步加载失败/尚未完成时，用渐变而非纯黑，保证刷新后仍有完整场景
+        const gradient = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
+        gradient.addColorStop(0, '#243b53');
+        gradient.addColorStop(0.55, '#486581');
+        gradient.addColorStop(1, '#102a43');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
-        // 球场线（占位，后续模块可重绘）
-        ctx.strokeStyle = 'rgba(255,255,255,.06)';
+
+        // 简洁球场地面与边框 fallback
+        ctx.fillStyle = 'rgba(219, 170, 91, 0.16)';
+        ctx.fillRect(0, LOGICAL_H * 0.58, LOGICAL_W, LOGICAL_H * 0.42);
+        ctx.strokeStyle = 'rgba(255,255,255,.22)';
         ctx.lineWidth = 2;
         ctx.strokeRect(20, 20, LOGICAL_W - 40, LOGICAL_H - 40);
+        ctx.beginPath();
+        ctx.arc(LOGICAL_W * 0.5, LOGICAL_H, 190, Math.PI, Math.PI * 2);
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -876,6 +912,20 @@
       if (gameState.phase === STATE.LOADING) {
         setState(gameState, STATE.READY);
         ui.showStart();
+      }
+
+      // 进入 READY 时显示一次操作提示；首屏 READY 不提示，只有投篮结束回到 READY 才提示
+      if (gameState.phase === STATE.READY &&
+          (gameState.previousPhase === STATE.SCORED || gameState.previousPhase === STATE.MISSED) &&
+          !gameState.showReadyHint) {
+        gameState.showReadyHint = true;
+        gameState.readyHintTimer = 1.5;
+      }
+      if (gameState.showReadyHint) {
+        gameState.readyHintTimer = Math.max(0, gameState.readyHintTimer - dt);
+        if (gameState.readyHintTimer <= 0) {
+          gameState.showReadyHint = false;
+        }
       }
 
       // 更新人物动画帧（每 100ms 切一帧）
@@ -960,6 +1010,12 @@
         gameState.ball.hitRim = false;
         gameState.ball.hitBackboard = false;
       }
+      // 篮网属于篮筐实体，不随篮球重置；若外部模块曾替换引用则重新绑定
+      if (gameState.rim && gameState.rim.net) {
+        gameState.net = gameState.rim.net;
+      } else if (gameState.net && gameState.rim) {
+        gameState.rim.net = gameState.net;
+      }
     }
 
     /**
@@ -967,6 +1023,7 @@
      */
     function doGameOver() {
       if (gameState.phase === STATE.GAME_OVER) return;
+      if (typeof playSound === 'function') playSound('game-over');
       setState(gameState, STATE.GAME_OVER);
       loop.pause();
       const accuracy = gameState.shots > 0
@@ -989,20 +1046,14 @@
         } catch (e) { console.error(e); }
       }
 
-      // 直接绘制篮球（绕过 ball.js 的条件判断，确保始终可见）
-      if (gameState.ball) {
+      // 只在出手后绘制篮球；READY/AIMING 仅显示人物，避免出现两个球
+      const ballVisible = gameState.phase === STATE.BALL_FLYING ||
+                          gameState.phase === STATE.SCORED ||
+                          gameState.phase === STATE.MISSED;
+      if (ballVisible && gameState.ball) {
         const b = gameState.ball;
-        // READY/AIMING 时球画在人物手上，飞行时用物理坐标
-        let drawX = b.x;
-        let drawY = b.y;
-        if (gameState.phase === STATE.READY || gameState.phase === STATE.AIMING) {
-          // 从 gameState.ballStartPos 获取人物手部位置
-          const startPos = gameState.ballStartPos || { x: 240, y: 450 };
-          drawX = startPos.x; // 人物右手 x
-          drawY = startPos.y - 10; // 人物手部 y（腰部偏上）
-        }
         ctx.save();
-        ctx.translate(drawX, drawY);
+        ctx.translate(b.x, b.y);
         ctx.rotate(b.rotation || 0);
         // 使用配置中的半径，确保始终为25
         const ballRadius = (typeof GAME_CONFIG !== 'undefined' && GAME_CONFIG.ball && GAME_CONFIG.ball.radius) || 25;
@@ -1024,6 +1075,22 @@
         ctx.beginPath();
         ctx.ellipse(0, 0, ballRadius * 0.6, ballRadius, 0, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.restore();
+      }
+
+      // 投篮结束后在画布中央显示 1.5 秒操作提示，并随剩余时间渐隐
+      if (gameState.phase === STATE.READY && gameState.showReadyHint && gameState.readyHintTimer > 0) {
+        const alpha = Math.min(1, gameState.readyHintTimer / 0.45);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '700 28px sans-serif';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.strokeText('👆 拖拽投篮', 400, 300);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('👆 拖拽投篮', 400, 300);
         ctx.restore();
       }
     }
@@ -1095,10 +1162,18 @@
 
     // 7.10 绑定按钮
     if (ui.$btnStart) {
-      ui.$btnStart.addEventListener('click', () => Game.beginRun());
+      ui.$btnStart.addEventListener('click', () => {
+        if (typeof initAudio === 'function') initAudio();
+        if (typeof playSound === 'function') playSound('button');
+        Game.beginRun();
+      });
     }
     if (ui.$btnRestart) {
-      ui.$btnRestart.addEventListener('click', () => Game.restart());
+      ui.$btnRestart.addEventListener('click', () => {
+        if (typeof initAudio === 'function') initAudio();
+        if (typeof playSound === 'function') playSound('button');
+        Game.restart();
+      });
     }
 
     // 7.11 启动

@@ -30,9 +30,9 @@ const TRAJECTORY_SHOW_COUNT = 6
  * @returns {number}
  */
 function computePowerForTrajectory(dragStart, dragCurrent) {
-    // 跟随鼠标模式：距离计算也与鼠标方向一致
-    const dx = dragCurrent.x - dragStart.x
-    const dy = dragCurrent.y - dragStart.y
+    // 弹弓模式：距离由拖拽起止点决定（与 physics.js 和 aim-guide.js 一致）
+    const dx = dragStart.x - dragCurrent.x
+    const dy = dragStart.y - dragCurrent.y
     const dragDistance = Math.hypot(dx, dy)
     const rawPower = dragDistance / TRAJECTORY_MAX_DRAG
     return Math.max(
@@ -51,8 +51,7 @@ function computePowerForTrajectory(dragStart, dragCurrent) {
  * @returns {{vx:number, vy:number, dist:number}}
  */
 function computeLaunchVelocityForTrajectory(dragStart, dragCurrent, power) {
-    // 弹弓模式：投篮方向 = 拖拽反方向（向后拉，球向前飞）
-    // 与 physics.js 的 computeLaunchVelocity 保持一致
+    // 弹弓模式：投篮方向 = 拖拽反方向（与 physics.js 和 aim-guide.js 一致）
     const dx = dragStart.x - dragCurrent.x
     const dy = dragStart.y - dragCurrent.y
     const dist = Math.hypot(dx, dy) || 1
