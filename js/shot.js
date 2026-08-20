@@ -22,9 +22,9 @@
         ball.aimStart = { x: pointerX, y: pointerY };
         ball.aimCurrent = { x: pointerX, y: pointerY };
         ball.isAiming = true;
-        ball.aimPower = 0;
-        // 球同步到人物头顶位置（ballStartY - playerHeight + 35 ≈ 头顶）
-        // 不用 pointerY，而是用人物头顶坐标，确保球从头部飞出
+        ball.aimPower = 0; // 重置力度为 0，从零开始蓄力
+        // 注意：不修改 ball.x / ball.y，篮球保持在起始位置
+        // 投篮方向由 dragStart → dragCurrent 的弹弓方向决定
     }
 
     /**
