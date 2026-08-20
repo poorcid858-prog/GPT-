@@ -133,16 +133,41 @@
       const playerHeight = 180;
       const playerWidth = playerHeight * 0.6; // 108px
 
+      // 根据游戏阶段选择人物图片
+      let imageToUse = playerImage;
+      let useFallback = !playerLoaded || !playerImage || !playerImage.complete || !playerImage.naturalWidth;
+
+      if (!useFallback) {
+        // 根据 phase 选择不同的帧
+        if (gs.phase === STATE.AIMING) {
+          // AIMING 阶段：使用投篮动画帧 1-2（交替）
+          const frameIdx = gs.animFrame % 2; // 0 或 1
+          if (playerShootFrames[frameIdx] && playerShootFrames[frameIdx].complete) {
+            imageToUse = playerShootFrames[frameIdx];
+          }
+        } else if (gs.phase === STATE.SHOOTING || gs.phase === STATE.BALL_FLYING) {
+          // SHOOTING/BALL_FLYING 阶段：使用投篮动画帧 3-6（循环）
+          const frameIdx = 2 + (gs.animFrame % 4); // 2, 3, 4, 5
+          if (playerShootFrames[frameIdx] && playerShootFrames[frameIdx].complete) {
+            imageToUse = playerShootFrames[frameIdx];
+          }
+        } else if (gs.phase === STATE.SCORED || gs.phase === STATE.MISSED) {
+          // SCORED/MISSED 阶段：使用最后一帧（投篮完成姿势）
+          if (playerShootFrames[5] && playerShootFrames[5].complete) {
+            imageToUse = playerShootFrames[5];
+          }
+        }
+        // READY/MENU 阶段：使用 playerImage（站立姿势）
+      }
+
       // 如果人物图片加载成功，绘制图片
-      if (playerLoaded && playerImage && playerImage.complete && playerImage.naturalWidth) {
+      if (!useFallback) {
         ctx.save();
         // 人物右手持球：人物右侧（手）对齐球位置
-        // 人物宽度为 playerWidth，所以人物右侧 = pDrawX + playerWidth
-        // 让人物右侧正好在球的位置（球在人物右手处）
         const pDrawX = playerX - playerWidth;
         const pDrawY = playerY - playerHeight + 20;
         ctx.drawImage(
-          playerImage,
+          imageToUse,
           pDrawX,
           pDrawY,
           playerWidth,
@@ -609,6 +634,11 @@
   let playerImage = null;
   let playerLoaded = false;
 
+  // 投篮动画帧缓存
+  const playerShootFrames = [];
+  let playerShootLoaded = 0;
+  const PLAYER_SHOOT_COUNT = 6;
+
   /**
    * 加载背景图片
    * 优先加载 arena-background.png，失败则尝试 court-background.png
@@ -649,6 +679,24 @@
     img.src = 'assets/player/player.png';
   }
 
+  /**
+   * 加载投篮动画帧（player-shoot-1~6.png）
+   */
+  function loadPlayerShootFrames() {
+    for (let i = 1; i <= PLAYER_SHOOT_COUNT; i++) {
+      const img = new Image();
+      const idx = i - 1;
+      img.onload = function() {
+        playerShootFrames[idx] = img;
+        playerShootLoaded++;
+      };
+      img.onerror = function() {
+        console.warn('[game] 投篮动画帧加载失败:', i);
+      };
+      img.src = `assets/player/player-shoot-${i}.png`;
+    }
+  }
+
   async function bootstrap() {
     ensureModuleRegistry();
 
@@ -658,6 +706,7 @@
     // 7.1.0 加载背景和人物图片
     loadBackgroundImage();
     loadPlayerImage();
+    loadPlayerShootFrames();
 
     // 7.1.1 子模块集成（glue code）
     // 把子模块的纯函数注册到主循环的 update / render / input 钩子
@@ -814,6 +863,19 @@
         ui.showStart();
       }
 
+      // 更新人物动画帧（每 100ms 切一帧）
+      if (gameState.phase === STATE.AIMING || gameState.phase === STATE.SHOOTING || gameState.phase === STATE.BALL_FLYING) {
+        gameState.animTimer += dt;
+        if (gameState.animTimer >= 0.1) {
+          gameState.animTimer -= 0.1;
+          gameState.animFrame++;
+        }
+      } else {
+        // 非动画阶段重置帧计数
+        gameState.animFrame = 0;
+        gameState.animTimer = 0;
+      }
+
       // 执行所有注册的 update 钩子（物理、碰撞、计分、计时等）
       for (let i = 0; i < reg.updates.length; i++) {
         try { reg.updates[i](gameState, dt); } catch (e) { console.error(e); }
@@ -917,15 +979,17 @@
         let drawX = b.x;
         let drawY = b.y;
         if (gameState.phase === STATE.READY || gameState.phase === STATE.AIMING) {
-          drawX = playerX; // 人物右手 x
-          drawY = playerY - 10; // 人物手部 y（腰部偏上）
+          // 从 gameState.ballStartPos 获取人物手部位置
+          const startPos = gameState.ballStartPos || { x: 240, y: 450 };
+          drawX = startPos.x; // 人物右手 x
+          drawY = startPos.y - 10; // 人物手部 y（腰部偏上）
         }
         ctx.save();
         ctx.translate(drawX, drawY);
         ctx.rotate(b.rotation || 0);
         // 篮球主体
         ctx.beginPath();
-        ctx.arc(0, 0, b.radius || 18, 0, Math.PI * 2);
+        ctx.arc(0, 0, b.radius || 25, 0, Math.PI * 2);
         ctx.fillStyle = '#E8710A';
         ctx.fill();
         ctx.strokeStyle = '#3D2B1F';
@@ -933,13 +997,13 @@
         ctx.stroke();
         // 篮球纹路
         ctx.beginPath();
-        ctx.moveTo(0, -(b.radius || 18));
-        ctx.lineTo(0, (b.radius || 18));
+        ctx.moveTo(0, -(b.radius || 25));
+        ctx.lineTo(0, (b.radius || 25));
         ctx.strokeStyle = '#3D2B1F';
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.beginPath();
-        ctx.ellipse(0, 0, (b.radius || 18) * 0.6, (b.radius || 18), 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, (b.radius || 25) * 0.6, (b.radius || 25), 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }

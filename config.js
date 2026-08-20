@@ -27,7 +27,7 @@ const GAME_CONFIG = {
 
   // 篮球参数
   ball: {
-    radius: 18,              // 篮球半径 (px)
+    radius: 25,              // 篮球半径 (px)，增大以匹配篮筐
     maxDragDistance: 240,    // 最大拖拽距离 (px)
     minPower: 0.6,           // 最小力度系数
     maxPower: 1.4,           // 最大力度系数

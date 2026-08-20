@@ -117,7 +117,11 @@ function createInitialState() {
     pauseAccumulated: 0,
 
     // —— 上一帧时间（供主循环使用）——
-    lastTimestamp: 0
+    lastTimestamp: 0,
+
+    // —— 动画帧计数器（用于人物动画）——
+    animFrame: 0,
+    animTimer: 0
   };
 }
 
