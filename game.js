@@ -96,8 +96,9 @@
     // 飞行超时（增加到 4 秒，给篮球足够时间飞行）
     if (ball.flightTime >= 4.0) return true;
     // 出界（增加边界容差，避免篮球刚飞出画布就判定为 Miss）
-    const margin = 150;
-    if (ball.x < -margin || ball.x > 800 + margin || ball.y > 600 + margin) return true;
+    const marginH = 150; // 水平方向容差
+    const marginBottom = 80; // 下方容差，减少球飞出屏幕的视觉问题
+    if (ball.x < -marginH || ball.x > 800 + marginH || ball.y > 600 + marginBottom) return true;
     // 卡死（飞行超过 1.5 秒后速度极低）
     if (ball.flightTime > 1.5) {
       const speed = Math.hypot(ball.vx, ball.vy);
@@ -453,6 +454,8 @@
           if (typeof window.Shot.startAiming === 'function') {
             window.Shot.startAiming(gs.ball, input.startX, input.startY);
             setState(gs, STATE.AIMING);
+            // 记录按下开始时间（用于力度控制）
+            gs.pressStartTime = performance.now();
           }
         } catch (e) { console.error(e); }
       }
@@ -461,7 +464,11 @@
       if (input.isDown && gs.phase === STATE.AIMING && window.Shot) {
         try {
           if (typeof window.Shot.updateAiming === 'function') {
-            window.Shot.updateAiming(gs.ball, input.currentX, input.currentY);
+            // 按住时长控制力度：0~2秒映射到0.6~1.4的power
+            const holdTime = (performance.now() - gs.pressStartTime) / 1000; // 秒
+            const maxHoldTime = 2; // 最大蓄力时间（秒）
+            const power = 0.6 + Math.min(holdTime / maxHoldTime, 1) * (1.4 - 0.6);
+            window.Shot.updateAiming(gs.ball, input.currentX, input.currentY, power);
           }
           // 同步力度到 currentShot（供 UI 消费）
           if (gs.ball && typeof gs.ball.aimPower === 'number') {
@@ -491,6 +498,8 @@
               gs.currentShot.resolved = false;
               gs.currentShot.isScored = false;
               gs.currentShot.hitRim = false;
+              // 清除按下开始时间
+              gs.pressStartTime = 0;
             }
           }
         } catch (e) { console.error(e); }
@@ -615,9 +624,13 @@
         $resultRows.appendChild(row);
       });
       $resultPanel.classList.remove('hidden');
+      $resultPanel.classList.add('visible');
     }
     function hideResult() {
-      if ($resultPanel) $resultPanel.classList.add('hidden');
+      if ($resultPanel) {
+        $resultPanel.classList.remove('visible');
+        $resultPanel.classList.add('hidden');
+      }
     }
 
     return {
@@ -733,7 +746,7 @@
     if (typeof BallModule !== 'undefined') {
       gameState.ball = BallModule.createBall(BALL_START_X, BALL_START_Y);
     } else {
-      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: 18, vx: 0, vy: 0, rotation: 0, rotationSpeed: 0, inFlight: false, shotResolved: false, hitRim: false, hitBackboard: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0, startX: BALL_START_X, startY: BALL_START_Y, aimPower: 0 };
+      gameState.ball = { x: BALL_START_X, y: BALL_START_Y, radius: GAME_CONFIG.ball.radius || 25, vx: 0, vy: 0, rotation: 0, rotationSpeed: 0, inFlight: false, shotResolved: false, hitRim: false, hitBackboard: false, prevX: BALL_START_X, prevY: BALL_START_Y, flightTime: 0, startX: BALL_START_X, startY: BALL_START_Y, aimPower: 0 };
     }
 
     if (typeof Rim !== 'undefined' && typeof Rim.createRim === 'function') {
@@ -987,9 +1000,11 @@
         ctx.save();
         ctx.translate(drawX, drawY);
         ctx.rotate(b.rotation || 0);
+        // 使用配置中的半径，确保始终为25
+        const ballRadius = (typeof GAME_CONFIG !== 'undefined' && GAME_CONFIG.ball && GAME_CONFIG.ball.radius) || 25;
         // 篮球主体
         ctx.beginPath();
-        ctx.arc(0, 0, b.radius || 25, 0, Math.PI * 2);
+        ctx.arc(0, 0, ballRadius, 0, Math.PI * 2);
         ctx.fillStyle = '#E8710A';
         ctx.fill();
         ctx.strokeStyle = '#3D2B1F';
@@ -997,13 +1012,13 @@
         ctx.stroke();
         // 篮球纹路
         ctx.beginPath();
-        ctx.moveTo(0, -(b.radius || 25));
-        ctx.lineTo(0, (b.radius || 25));
+        ctx.moveTo(0, -ballRadius);
+        ctx.lineTo(0, ballRadius);
         ctx.strokeStyle = '#3D2B1F';
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.beginPath();
-        ctx.ellipse(0, 0, (b.radius || 25) * 0.6, (b.radius || 25), 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, ballRadius * 0.6, ballRadius, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }

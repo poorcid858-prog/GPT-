@@ -116,6 +116,9 @@ function createInitialState() {
     pausedAt: 0,
     pauseAccumulated: 0,
 
+    // —— 蓄力按住开始时间（毫秒）——
+    pressStartTime: 0,
+
     // —— 上一帧时间（供主循环使用）——
     lastTimestamp: 0,
 
