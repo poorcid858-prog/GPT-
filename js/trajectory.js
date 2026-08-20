@@ -30,8 +30,8 @@ const TRAJECTORY_SHOW_COUNT = 6
  * @returns {number}
  */
 function computePowerForTrajectory(dragStart, dragCurrent) {
-    const dx = dragStart.x - dragCurrent.x
-    const dy = dragStart.y - dragCurrent.y
+    const dx = dragCurrent.x - dragStart.x
+    const dy = dragCurrent.y - dragStart.y
     const dragDistance = Math.hypot(dx, dy)
     const rawPower = dragDistance / TRAJECTORY_MAX_DRAG
     return Math.max(
@@ -50,18 +50,18 @@ function computePowerForTrajectory(dragStart, dragCurrent) {
  * @returns {{vx:number, vy:number, dist:number}}
  */
 function computeLaunchVelocityForTrajectory(dragStart, dragCurrent, power) {
-    const dx = dragStart.x - dragCurrent.x
-    const dy = dragStart.y - dragCurrent.y
+    const dx = dragCurrent.x - dragStart.x
+    const dy = dragCurrent.y - dragStart.y
     const dist = Math.hypot(dx, dy) || 1
 
     const force = TRAJECTORY_BASE_FORCE * power
     const dirX = dx / dist
     // 始终向上抛：Canvas 中 y 向下为正，向上为负
-    const dirY = Math.abs(dy) / dist
+    const dirY = -Math.abs(dy) / dist
 
     return {
         vx: dirX * force,
-        vy: -dirY * force,
+        vy: dirY * force,
         dist
     }
 }

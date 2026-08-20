@@ -136,11 +136,13 @@
       // 如果人物图片加载成功，绘制图片
       if (playerLoaded && playerImage && playerImage.complete && playerImage.naturalWidth) {
         ctx.save();
-        // 人物在篮球左侧偏下位置（人物底部对齐篮球下方）
+        // 人物右手持球：人物右侧（手）对齐球位置左侧 15px
+        const pDrawX = playerX - playerWidth - 15;
+        const pDrawY = playerY - playerHeight + 20;
         ctx.drawImage(
           playerImage,
-          playerX - playerWidth - 25,
-          playerY - playerHeight + 20,
+          pDrawX,
+          pDrawY,
           playerWidth,
           playerHeight
         );
@@ -148,7 +150,7 @@
       } else {
         // 人物图片加载失败，绘制简笔人物
         ctx.save();
-        const px = playerX - playerWidth - 25;
+        const px = playerX - playerWidth - 15;
         const py = playerY - playerHeight + 20;
 
         // 头部

@@ -47,9 +47,9 @@
      * @returns {{vx: number, vy: number, power: number}} 初速度与力度
      */
     function computeLaunchVelocity(dragStart, dragCurrent, power) {
-        // 从篮球向目标方向拖拽（拖拽方向即投篮方向）
-        const dx = dragStart.x - dragCurrent.x;
-        const dy = dragStart.y - dragCurrent.y;
+        // 投篮方向 = 从拖拽起点指向拖拽终点（松手方向即投篮方向）
+        const dx = dragCurrent.x - dragStart.x;
+        const dy = dragCurrent.y - dragStart.y;
         const dist = Math.hypot(dx, dy) || 1;
 
         // 力度：未传入则由拖拽距离映射
