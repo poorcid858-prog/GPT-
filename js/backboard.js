@@ -42,7 +42,7 @@
      * @param {CanvasRenderingContext2D} ctx
      * @param {object} backboard 篮板对象
      */
-    function drawBackboard(ctx, backboard) {
+    function drawBackboard(ctx, backboard, canvasHeight) {
         ctx.save();
 
         // 篮板主体（白色矩形，灰色边框）
@@ -65,6 +65,17 @@
         ctx.strokeStyle = '#c0392b';
         ctx.lineWidth = 3;
         ctx.strokeRect(backboard.x - 1, backboard.y - 1, backboard.width + 2, backboard.height + 2);
+
+        // 立地杆子（从篮板底部延伸到画布底部/地面）
+        const poleWidth = 9;
+        const poleX = backboard.x + backboard.width / 2 - poleWidth / 2;
+        const poleTop = backboard.y + backboard.height;
+        const poleBottom = canvasHeight || 600; // 默认画布高度
+        ctx.fillStyle = '#888';
+        ctx.fillRect(poleX, poleTop, poleWidth, poleBottom - poleTop);
+        // 杆子高光
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillRect(poleX + 1, poleTop, 2, poleBottom - poleTop);
 
         ctx.restore();
     }

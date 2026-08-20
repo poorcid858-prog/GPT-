@@ -218,7 +218,7 @@
     // 1. 篮板（Backboard 单独绘制）
     if (window.Backboard && typeof window.Backboard.drawBackboard === 'function') {
       reg.renders.push((gs, ctx) => {
-        try { window.Backboard.drawBackboard(ctx, gs.backboard); } catch(e){}
+        try { window.Backboard.drawBackboard(ctx, gs.backboard, 600); } catch(e){}
       });
     }
 
@@ -803,7 +803,7 @@
     const RIM_X = LOGICAL_W * 0.75;  // 向右移动：600/800 = 0.75
     const RIM_Y = LOGICAL_H * 0.283; // 向下移动：170/600 = 0.283
     const BALL_START_X = LOGICAL_W * 0.30;
-    const BALL_START_Y = LOGICAL_H * 0.75;
+    const BALL_START_Y = LOGICAL_H * 0.44; // ≈264px，头部位置
 
     if (typeof BallModule !== 'undefined') {
       gameState.ball = BallModule.createBall(BALL_START_X, BALL_START_Y);
@@ -1051,15 +1051,12 @@
         gameState.ball.hitRim = false;
         gameState.ball.hitBackboard = false;
       }
-      // 篮网属于篮筐实体，不随篮球重置；强制双向同步
-      if (gameState.rim) {
-        if (gameState.rim.net && gameState.net !== gameState.rim.net) {
-          gameState.net = gameState.rim.net;
-        } else if (gameState.net && !gameState.rim.net) {
-          gameState.rim.net = gameState.net;
-        } else if (!gameState.net && gameState.rim.net) {
-          gameState.net = gameState.rim.net;
-        }
+      // 篮网属于篮筐实体，不随篮球重置；仅在 rim.net 不存在时同步
+      // 不要覆盖 rim.net，否则会重置篮网摆动状态
+      if (gameState.rim && !gameState.rim.net && gameState.net) {
+        gameState.rim.net = gameState.net;
+      } else if (gameState.rim && gameState.rim.net && !gameState.net) {
+        gameState.net = gameState.rim.net;
       }
     }
 
