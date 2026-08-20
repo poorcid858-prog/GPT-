@@ -30,8 +30,8 @@ const TRAJECTORY_SHOW_COUNT = 6
  * @returns {number}
  */
 function computePowerForTrajectory(dragStart, dragCurrent) {
-    const dx = dragCurrent.x - dragStart.x
-    const dy = dragCurrent.y - dragStart.y
+    const dx = dragStart.x - dragCurrent.x
+    const dy = dragStart.y - dragCurrent.y
     const dragDistance = Math.hypot(dx, dy)
     const rawPower = dragDistance / TRAJECTORY_MAX_DRAG
     return Math.max(
@@ -50,18 +50,15 @@ function computePowerForTrajectory(dragStart, dragCurrent) {
  * @returns {{vx:number, vy:number, dist:number}}
  */
 function computeLaunchVelocityForTrajectory(dragStart, dragCurrent, power) {
-    const dx = dragCurrent.x - dragStart.x
-    const dy = dragCurrent.y - dragStart.y
+    // 弹弓模式：与实际物理一致，方向为拖拽反方向
+    const dx = dragStart.x - dragCurrent.x
+    const dy = dragStart.y - dragCurrent.y
     const dist = Math.hypot(dx, dy) || 1
 
     const force = TRAJECTORY_BASE_FORCE * power
     const dirX = dx / dist
     // 始终向上抛：Canvas 中 y 向下为正，向上为负
     const dirY = -Math.abs(dy) / dist
-
-    // 诊断日志：对比轨迹预测方向
-    console.log('[TRAJ] dragStart:', JSON.stringify(dragStart), 'dragCurrent:', JSON.stringify(dragCurrent),
-      'vx:', (dirX * force).toFixed(0), 'vy:', (dirY * force).toFixed(0));
 
     return {
         vx: dirX * force,
