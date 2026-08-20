@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>物理测试</title>
+<style>body{margin:0;background:#111;display:flex;flex-direction:column;align-items:center;font:14px monospace;color:#fff}
+canvas{border:1px solid #333;margin:10px}
+#info{padding:10px;max-width:800px}</style></head>
+<body>
+<h3>物理方向测试 — 从●拖拽到○，松手后球应该飞向○</h3>
+<canvas id="c" width="800" height="500"></canvas>
+<div id="info">拖拽蓝色球到目标位置，松手观察飞行方向</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const info = document.getElementById('info');
+
+// 球
+const ball = { x: 200, y: 400, vx: 0, vy: 0, radius: 18, flying: false, trail: [] };
+// 目标
+const target = { x: 600, y: 150 };
+// 拖拽
+let dragging = false;
+let dragStart = null;
+let dragCurrent = null;
+
+const GRAVITY = 980;
+const BASE_FORCE = 700;
+
+function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+canvas.addEventListener('pointerdown', e => {
+    if (ball.flying) return;
+    const p = getPos(e);
+    const d = Math.hypot(p.x - ball.x, p.y - ball.y);
+    if (d < ball.radius + 20) {
+        dragging = true;
+        dragStart = { x: p.x, y: p.y };
+        dragCurrent = { x: p.x, y: p.y };
+        canvas.setPointerCapture(e.pointerId);
+    }
+});
+
+canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    dragCurrent = getPos(e);
+});
+
+canvas.addEventListener('pointerup', e => {
+    if (!dragging) return;
+    dragging = false;
+    dragCurrent = getPos(e);
+
+    // 计算投篮方向（修复后的版本）
+    const dx = dragCurrent.x - dragStart.x;
+    const dy = dragCurrent.y - dragStart.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 5) { dragStart = null; dragCurrent = null; return; }
+
+    const power = Math.min(1.4, Math.max(0.6, dist / 240));
+    const force = BASE_FORCE * power;
+    const dirX = dx / dist;
+    const dirY = -Math.abs(dy) / dist; // 始终向上
+
+    ball.vx = dirX * force;
+    ball.vy = dirY * force;
+    ball.flying = true;
+    ball.trail = [{x: ball.x, y: ball.y}];
+
+    info.textContent = `出手: vx=${ball.vx.toFixed(0)} vy=${ball.vy.toFixed(0)} power=${power.toFixed(2)} dist=${dist.toFixed(0)} direction=(${dirX.toFixed(2)}, ${dirY.toFixed(2)})`;
+    dragStart = null;
+    dragCurrent = null;
+});
+
+let lastTime = performance.now();
+function update(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    if (ball.flying) {
+        ball.vy += GRAVITY * dt;
+        ball.x += ball.vx * dt;
+        ball.y += ball.vy * dt;
+        ball.trail.push({x: ball.x, y: ball.y});
+        if (ball.trail.length > 200) ball.trail.shift();
+
+        // 出界重置
+        if (ball.x < -50 || ball.x > 850 || ball.y > 550 || ball.y < -100) {
+            ball.flying = false;
+            ball.x = 200; ball.y = 400; ball.vx = 0; ball.vy = 0;
+            info.textContent += ' | 出界，已重置';
+        }
+    }
+
+    render();
+    requestAnimationFrame(update);
+}
+
+function render() {
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, 800, 500);
+
+    // 目标
+    ctx.beginPath();
+    ctx.arc(target.x, target.y, 25, 0, Math.PI * 2);
+    ctx.strokeStyle = '#4CAF50';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#4CAF50';
+    ctx.font = '12px monospace';
+    ctx.fillText('目标○', target.x - 15, target.y - 30);
+
+    // 轨迹
+    if (ball.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(ball.trail[0].x, ball.trail[0].y);
+        for (let i = 1; i < ball.trail.length; i++) {
+            ctx.lineTo(ball.trail[i].x, ball.trail[i].y);
+        }
+        ctx.strokeStyle = 'rgba(255,200,0,0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // 瞄准线
+    if (dragging && dragStart && dragCurrent) {
+        const dx = dragCurrent.x - dragStart.x;
+        const dy = dragCurrent.y - dragStart.y;
+        const dist = Math.hypot(dx, dy);
+        const power = Math.min(1.4, Math.max(0.6, dist / 240));
+        const force = BASE_FORCE * power;
+        const dirX = dx / dist;
+        const dirY = -Math.abs(dy) / dist;
+
+        // 方向线（从球出发）
+        ctx.beginPath();
+        ctx.moveTo(ball.x, ball.y);
+        ctx.lineTo(ball.x + dirX * 100, ball.y + dirY * 100);
+        ctx.strokeStyle = '#FF5252';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 拖拽线
+        ctx.beginPath();
+        ctx.moveTo(dragStart.x, dragStart.y);
+        ctx.lineTo(dragCurrent.x, dragCurrent.y);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        info.textContent = `拖拽中: dx=${dx.toFixed(0)} dy=${dy.toFixed(0)} → dir=(${dirX.toFixed(2)}, ${dirY.toFixed(2)}) power=${power.toFixed(2)}`;
+    }
+
+    // 球
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = ball.flying ? '#FF9800' : '#2196F3';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    if (!ball.flying) {
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('●拖我', ball.x - 15, ball.y + ball.radius + 15);
+    }
+}
+
+requestAnimationFrame(update);
+</script>
+</body></html>

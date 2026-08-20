@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>诊断</title></head>
+<body>
+<pre id="log"></pre>
+<script>
+function log(msg) { document.getElementById('log').textContent += msg + '\n'; }
+</script>
+<script src="config.js"></script>
+<script src="game-state.js"></script>
+<script>
+// 手动测试关键逻辑
+log('=== 诊断开始 ===');
+
+// 1. 检查 STATE
+log('STATE.BALL_FLYING = ' + (typeof STATE !== 'undefined' ? STATE.BALL_FLYING : 'UNDEFINED'));
+
+// 2. 模拟 ball 对象
+const ball = { x: 240, y: 450, vx: 0, vy: 0, radius: 18, inFlight: false, shotResolved: false, isAiming: false, aimPower: 1.0, aimStart: null, aimCurrent: null, hitRim: false, hitBackboard: false, flightTime: 0, rotation: 0, rotationSpeed: 0 };
+log('ball初始: x=' + ball.x + ' y=' + ball.y + ' inFlight=' + ball.inFlight);
+
+// 3. 模拟 releaseShot
+ball.vx = -300;
+ball.vy = -500;
+ball.inFlight = true;
+log('releaseShot后: vx=' + ball.vx + ' vy=' + ball.vy + ' inFlight=' + ball.inFlight);
+
+// 4. 模拟 1 帧物理 (dt=0.016)
+const dt = 0.016;
+const gravity = 980;
+ball.vy += gravity * dt;
+ball.x += ball.vx * dt;
+ball.y += ball.vy * dt;
+log('1帧后: x=' + ball.x.toFixed(1) + ' y=' + ball.y.toFixed(1) + ' vx=' + ball.vx.toFixed(1) + ' vy=' + ball.vy.toFixed(1));
+
+// 5. 模拟 drawBall 条件
+const phase = 'BALL_FLYING';
+const shouldSkip = (!ball.inFlight) && (phase !== 'AIMING') && (phase !== 'READY');
+log('drawBall skip? ' + shouldSkip + ' (inFlight=' + ball.inFlight + ' phase=' + phase + ')');
+
+// 6. 模拟 60 帧（1秒）
+for (let i = 0; i < 60; i++) {
+    ball.vy += gravity * dt;
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
+}
+log('1秒后: x=' + ball.x.toFixed(1) + ' y=' + ball.y.toFixed(1));
+
+// 7. 检查 computeLaunchVelocity 方向
+const dragStart = {x: 240, y: 450};
+const dragEnd = {x: 300, y: 350}; // 用户往右上拖
+const dx_new = dragEnd.x - dragStart.x; // = 60 (右)
+const dy_new = dragEnd.y - dragStart.y; // = -100 (上)
+const dist_new = Math.hypot(dx_new, dy_new);
+const dirX_new = dx_new / dist_new;
+const dirY_new = -Math.abs(dy_new) / dist_new;
+log('拖拽方向: dx=' + dx_new + ' dy=' + dy_new + ' dirX=' + dirX_new.toFixed(2) + ' dirY=' + dirY_new.toFixed(2));
+log('→ vx=' + (dirX_new * 700).toFixed(0) + ' (正=右) vy=' + (dirY_new * 700).toFixed(0) + ' (负=上)');
+
+log('=== 诊断结束 ===');
+</script>
+</body></html>

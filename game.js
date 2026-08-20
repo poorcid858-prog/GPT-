@@ -136,8 +136,10 @@
       // 如果人物图片加载成功，绘制图片
       if (playerLoaded && playerImage && playerImage.complete && playerImage.naturalWidth) {
         ctx.save();
-        // 人物右手持球：人物右侧（手）对齐球位置左侧 15px
-        const pDrawX = playerX - playerWidth - 15;
+        // 人物右手持球：人物右侧（手）对齐球位置
+        // 人物宽度为 playerWidth，所以人物右侧 = pDrawX + playerWidth
+        // 让人物右侧正好在球的位置（球在人物右手处）
+        const pDrawX = playerX - playerWidth;
         const pDrawY = playerY - playerHeight + 20;
         ctx.drawImage(
           playerImage,
@@ -150,7 +152,7 @@
       } else {
         // 人物图片加载失败，绘制简笔人物
         ctx.save();
-        const px = playerX - playerWidth - 15;
+        const px = playerX - playerWidth;
         const py = playerY - playerHeight + 20;
 
         // 头部
@@ -201,12 +203,7 @@
       });
     }
 
-    // 3. 篮球
-    if (window.BallModule && typeof window.BallModule.drawBall === 'function') {
-      reg.renders.push((gs, ctx) => {
-        try { window.BallModule.drawBall(ctx, gs.ball, gs); } catch(e){}
-      });
-    }
+    // 3. 篮球 — 由 onRender 直接绘制，不走 BallModule（避免条件判断导致不可见）
 
     // 4. 瞄准辅助线（仅 AIMING 阶段且按下中）
     if (typeof window.drawAimGuide === 'function') {
@@ -627,7 +624,7 @@
       img.onload = function() {
         bgImage = img;
         bgLoaded = true;
-        console.log('[game] 背景图片加载成功:', path);
+        // 背景图片加载成功
       };
       img.onerror = function() {
         console.warn('[game] 背景图片加载失败:', path);
@@ -644,7 +641,7 @@
     img.onload = function() {
       playerImage = img;
       playerLoaded = true;
-      console.log('[game] 人物图片加载成功');
+      // 人物图片加载成功
     };
     img.onerror = function() {
       console.warn('[game] 人物图片加载失败');
@@ -912,6 +909,33 @@
       for (let i = 0; i < reg.renders.length; i++) {
         try { reg.renders[i](gameState, ctx); } catch (e) { console.error(e); }
       }
+
+      // 直接绘制篮球（绕过 ball.js 的条件判断，确保始终可见）
+      if (gameState.ball) {
+        const b = gameState.ball;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.rotation || 0);
+        // 篮球主体
+        ctx.beginPath();
+        ctx.arc(0, 0, b.radius || 18, 0, Math.PI * 2);
+        ctx.fillStyle = '#E8710A';
+        ctx.fill();
+        ctx.strokeStyle = '#3D2B1F';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // 篮球纹路
+        ctx.beginPath();
+        ctx.moveTo(0, -(b.radius || 18));
+        ctx.lineTo(0, (b.radius || 18));
+        ctx.strokeStyle = '#3D2B1F';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(0, 0, (b.radius || 18) * 0.6, (b.radius || 18), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // 7.8 启动循环
@@ -995,12 +1019,6 @@
       if (document.hidden && gameState.phase !== STATE.GAME_OVER && gameState.phase !== STATE.LOADING) {
         Game.pause();
       }
-    });
-
-    console.log('[game] 启动完成。模块注册：', {
-      update: reg.updates.length,
-      render: reg.renders.length,
-      input:  reg.inputs.length
     });
   }
 
